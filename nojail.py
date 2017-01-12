@@ -329,7 +329,7 @@ def clean_generic_logs(files, ip, hostname):
     var_logs = ""
     with open(os.devnull, 'w') as devnull:
         p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
-                              "-regex", ".*\.log(\.[0-9])(\.gz)?$"],
+                              "-regex", ".*\.log(\.[0-9]+)(\.gz)?$"],
                              stdout=subprocess.PIPE, stderr=devnull)
         var_logs, stderr = p.communicate()
 
@@ -349,8 +349,8 @@ def clean_generic_logs(files, ip, hostname):
 
         cleaned_entries = 0
         tmp_file = get_temp_filename()
-        with open(tmp_file, "wb") if not log.endswith("gz") else gzip.open(tmp_file, "wb") as g:
-            with open(log, 'r') if not log.endswith("gz") else gzip.open(log, "rb") as f:
+        with open(tmp_file, "wb") if not log.endswith(".gz") else gzip.open(tmp_file, "wb") as g:
+            with open(log, 'r') if not log.endswith(".gz") else gzip.open(log, "rb") as f:
                 while True:
                     line = f.readline()
                     if not line:
