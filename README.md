@@ -12,7 +12,7 @@ A simple log cleaner which removes incriminating entries in:
 
 * `/var/run/utmp`, `/var/log/wtmp`, `/var/log/btmp` (controls the output of the `who`, `w` and `last` commands)
 * `/var/log/lastlog` (controls the output of the `lastlog` command)
-* `/var/**/*.log`
+* `/var/**/*.log` (.log.1, .log.2.gz, etc. included)
 * Any additional file designated by the user
 
 Entries are deleted based on an IP address and/or associated hostname.

@@ -19,6 +19,7 @@
 
 import argparse
 import datetime
+import gzip
 import os
 import platform
 import pwd
@@ -180,7 +181,7 @@ def secure_delete(target):
     :return: None
     """
     if not os.path.exists(target):  # Easiest deletion ever.
-        print error("Tried to delete a nonexistent file!")
+        print error("Tried to delete a nonexistent file! (%s)" % target)
         return
 
     try:
@@ -327,7 +328,9 @@ def clean_generic_logs(files, ip, hostname):
     """
     var_logs = ""
     with open(os.devnull, 'w') as devnull:
-        p = subprocess.Popen(["find", "/var", "-name", "*.log"], stdout=subprocess.PIPE, stderr=devnull)
+        p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
+                              "-regex", ".*\.log(\.[0-9])(\.gz)?$"],
+                             stdout=subprocess.PIPE, stderr=devnull)
         var_logs, stderr = p.communicate()
 
     # Merge the found logs with the known ones and the files requested by the user to create a list
@@ -346,8 +349,8 @@ def clean_generic_logs(files, ip, hostname):
 
         cleaned_entries = 0
         tmp_file = get_temp_filename()
-        with open(tmp_file, "wb") as g:
-            with open(log, 'r') as f:
+        with open(tmp_file, "wb") if not log.endswith("gz") else gzip.open(tmp_file, "wb") as g:
+            with open(log, 'r') if not log.endswith("gz") else gzip.open(log, "rb") as f:
                 while True:
                     line = f.readline()
                     if not line:
@@ -380,7 +383,7 @@ def daemonize():
     This function will daemonize the script and continue executing it only
     when the current session will have ended.
     The rationale behind this is to clean logs after the caller has disconnected from
-    the machine in order to catch SSG logout records (for instance).
+    the machine in order to catch SSH logout records (for instance).
     :return:
     """
     def fork():
