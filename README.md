@@ -13,7 +13,7 @@ A simple log cleaner which removes incriminating entries in:
 * `/var/run/utmp`, `/var/log/wtmp`, `/var/log/btmp` (controls the output of the `who`, `w` and `last` commands)
 * `/var/log/lastlog` (controls the output of the `lastlog` command)
 * `/var/**/*.log` (.log.1, .log.2.gz, etc. included)
-* Any additional file designated by the user
+* Any additional file or folder designated by the user
 
 Entries are deleted based on an IP address and/or associated hostname.
 
@@ -45,9 +45,8 @@ usage: nojail.py [-h] [--user USER] [--ip IP] [--hostname HOSTNAME]
      --check, -c           If present, the user will be asked to confirm each
                            deletion from the logs.
      --daemonize, -d       Start in the background and delete logs when the
-                           current session terminates. This script will then
-                           delete itself.
-
+                           current session terminates. Implies --self-delete.
+     --self-delete, -s     Automatically delete the script after its execution.
 ```
 
 By default, if no arguments are given, the script will try to determine the IP address to scrub based on the
@@ -61,6 +60,9 @@ By default, if no arguments are given, the script will try to determine the IP a
 ...will remove all entries for the user root where the IP address is 151.80.119.32 or the hostame is `manalyzer.org`.
 The user will also be prompted before deleting each record because of the `--check` option. Finally, the file
 `/etc/app/logs/access.log` will be processed in addition to all the default ones.
+
+If folders are given as positional arguments (`/etc/app/logs/` for instance), the script will recursively crawl them and
+clean any file with the `.log` extension (*.log.1, *.log.2.gz, etc. included).
 
 #### Daemonizing the script
 
