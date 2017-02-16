@@ -6,9 +6,15 @@ Everything here is distributed under the terms of the [GPL v3 License](https://w
 
 Contributions and pull requests are very welcome.
 
+## Table of Contents
+
+- [NoJail.py](#nojailpy), a python log cleaner.
+- [share.sh](#sharesh), a secure file sharing script.
+- [Miscellaneous](#miscellaneous) (contact and donations)
+
 ## NoJail.py
 
-A simple log cleaner which removes incriminating entries in:
+A log cleaner which removes incriminating entries in:
 
 * `/var/run/utmp`, `/var/log/wtmp`, `/var/log/btmp` (controls the output of the `who`, `w` and `last` commands)
 * `/var/log/lastlog` (controls the output of the `lastlog` command)
@@ -90,12 +96,43 @@ root@proxy:~# ./nojail.py
 This script is provided without any guarantees.
 Don't blame me it doesn't wipe all traces of something you shouldn't have done in the first place.
 
+## share.sh
+
+A portable and secure file sharing script. While freedom fighting, it is generally not possible to scp files into
+compromised machines. Alternate ways to upload files are needed, but most sharing services are either too restrictive
+or do not provide a way to retrieve files easily from the command line. Security considerations may also prevent
+people from uploading sensitive files to cloud providers for fear that they will keep a copy of it forever.
+
+This small and portable bash script relies on [transfer.sh](https://transfer.sh) to solve that problem. It...
+* Encrypts files before uploading them (symmetric AES-256-CBC).
+* Automatically uses `torify` if it is present on the system for increased anonimity.
+
+The only dependencies needed are `openssl` and either `curl` or `wget`.
+
+### Usage
+
+```
+root@proxy:~# ./share.sh ~/file_to_share "My_Secure_Encryption_Key!"
+Success! Retrieval command: ./share.sh -r file_to_share "My_Secure_Encryption_Key!" https://transfer.sh/BQPFz/28239
+root@proxy:~# ./share.sh -r file_to_share "My_Secure_Encryption_Key!" https://transfer.sh/BQPFz/28239
+File retrieved successfully!
+```
+
+Additional arguments during the upload allow you to control the maximum number of downloads allowed for the file (`-m`)
+and how many days transfer.sh will keep it (`-d`). The default value for both these options is 1.
+
+**Warning**: Do not use spaces in the encryption key, or only the first word of your passphrase will be taken into
+account. This is due to the way `getopts` handles arguments (I think). Pull requests are welcome if anyone is interested in
+fixing this.
+
+## Miscellaneous
+
 ### Donations
 These scripts are 100% free. I do like Bitcoins though, so if you want to send some my way, here's an address you can
 use: ```19wFVDUWhrjRe3rPCsokhcf1w9Stj3Sr6K```
 Feel free to drop me a line if you donate to the project, so I can thank you personally!
 
 ### Contact
-[![](http://manalyzer.org/static/mail.png)](mailto:justicerage *at* manalyzer.org)
-[![](http://manalyzer.org/static/twitter.png)](https://twitter.com/JusticeRage)
-[![](http://manalyzer.org/static/gpg.png)](https://pgp.mit.edu/pks/lookup?op=vindex&search=0x40E9F0A8F5EA8754)
+[![](https://manalyzer.org/static/mail.png)](mailto:justicerage *at* manalyzer.org)
+[![](https://manalyzer.org/static/twitter.png)](https://twitter.com/JusticeRage)
+[![](https://manalyzer.org/static/gpg.png)](https://pgp.mit.edu/pks/lookup?op=vindex&search=0x40E9F0A8F5EA8754)

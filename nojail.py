@@ -380,7 +380,7 @@ def daemonize():
     This function will daemonize the script and continue executing it only
     when the current session will have ended.
     The rationale behind this is to clean logs after the caller has disconnected from
-    the machine in order to catch SSG logout records (for instance).
+    the machine in order to catch SSH logout records (for instance).
     :return:
     """
     def fork():
