@@ -317,41 +317,27 @@ def clean_lastlog(filename, username, ip, hostname):
 
 # -----------------------------------------------------------------------------
 
-def find_log_files(folder):
-    """
-    Locates log files in a given folder, based on their names. Files matching the
-    following name patterns are returned:
-    - *.log
-    - *.log.gz
-    - *.log.%d (i.e. access.log.1)
-    - *.log.%d.gz (i.e. access.log.2.gz)
-    :param folder: The folder to search.
-    :return: The list of log files which were found.
-    """
-    with open(os.devnull, 'w') as devnull:
-        p = subprocess.Popen(["find", folder, "-regextype", "posix-egrep",
-                              "-regex", ".*\.log(\.[0-9]+)?(\.gz)?$"],
-                             stdout=subprocess.PIPE, stderr=devnull)
-        logs, stderr = p.communicate()
-        return filter(lambda x: x.strip(), logs.split('\n'))
-
-# -----------------------------------------------------------------------------
-
-def clean_generic_logs(user_files, ip, hostname):
+def clean_generic_logs(files, ip, hostname):
     """
     Generic log cleaning method which removes any line containing the given IP or hostname
-    from log files present on the system.
-    :param user_files: Additional files to clean.
+    from files with a .log.([0-9]+)?(.gz)? extension in /var/.
+    :param files: Additional files to clean.
     :param ip: The IP to scrub from the logs.
     :param hostname: The hostname to scrub from the logs.
     :return:
     """
+    with open(os.devnull, 'w') as devnull:
+        p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
+                              "-regex", ".*\.log(\.[0-9]+)(\.gz)?$"],
+                             stdout=subprocess.PIPE, stderr=devnull)
+        var_logs, stderr = p.communicate()
+
     # Merge the found logs with the known ones and the files requested by the user to create a list
     # of all the files to clean.
-    hardcoded_files = None
+    additional_files = None
     if platform.system() == "Linux":
-        hardcoded_files = LINUX_ADDITIONAL_LOGS
-    targets = set(find_log_files("/var") + user_files + hardcoded_files)
+        additional_files = LINUX_ADDITIONAL_LOGS
+    targets = set(filter(lambda x: x.strip(), var_logs.split('\n')) + files + additional_files)
     for log in targets:
         if not os.path.exists(log):  # One of the additional files (i.e. /var/log/secure doesn't exist. Ignore.
             continue
@@ -378,7 +364,7 @@ def clean_generic_logs(user_files, ip, hostname):
 
         # Done reading the input file. Overwrite it if needed and report the findings.
         if cleaned_entries == 0:
-            if VERBOSE or log in user_files:
+            if VERBOSE or log in files:
                 print info("No entries to remove found in %s." % log)
             secure_delete(tmp_file)
             continue
@@ -474,21 +460,6 @@ def validate_args(args):
             sys.exit(1)
         CHECK_MODE = True
 
-    # Locate additional log files requested in case some of them are directories
-    if args.log_files is not None:
-        temp_log_files = []
-        for log in args.log_files:
-            if os.path.isfile(log):
-                temp_log_files.append(log)
-            else:
-                # Recursively add any .log or .log.gz file in the directory.
-                additional_logs = find_log_files(log)
-                if VERBOSE:
-                    for l in additional_logs:
-                        print info("Adding %s to the list of files to clean..." % l)
-                temp_log_files += additional_logs
-        args.log_files = temp_log_files
-
     # Assert that the given log files can be read and written to, otherwise they can't be tampered with.
     if args.log_files is not None:
         for log in args.log_files:
@@ -496,7 +467,7 @@ def validate_args(args):
                 print error("%s does not exist!" % log)
                 sys.exit(1)
             if not os.access(log, os.R_OK | os.W_OK):
-                print warning("%s is either not readable or not writable!" % log)
+                print error("%s is either not readable or not writable!" % log)
                 sys.exit(1)
 
     if args.daemonize:
@@ -516,12 +487,8 @@ if __name__ == "__main__":
     parser.add_argument("--check", "-c", help="If present, the user will be asked to confirm each deletion from the "
                                               "logs.", action="store_true")
     parser.add_argument("--daemonize", "-d", help="Start in the background and delete logs when the current session "
-                                                  "terminates. Implies --self-delete.",
-                        action="store_true")
-    parser.add_argument("--self-delete", "-s", help="Automatically delete the script after its execution.",
-                        action="store_true")
-    parser.add_argument("log_files", nargs='*', help="Specify any log files or directories to clean in addition to "
-                                                     "/var/**/*.log.")
+                                                  "terminates. This script will then delete itself.", action="store_true")
+    parser.add_argument("log_files", nargs='*', help="Specify any log files to clean in addition to /var/**/*.log.")
     args = parser.parse_args()
     validate_args(args)
     print info("Cleaning logs for %s (%s - %s)." % (args.user, args.ip, args.hostname))
@@ -543,5 +510,5 @@ if __name__ == "__main__":
     clean_generic_logs(args.log_files, args.ip, args.hostname)
 
     # If we daemonized to remove the logs after the user disconnects, also shred this script.
-    if args.daemonize or args.self_delete:
+    if args.daemonize:
         secure_delete(sys.argv[0])

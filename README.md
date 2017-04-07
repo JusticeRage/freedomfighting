@@ -8,8 +8,9 @@ Contributions and pull requests are very welcome.
 
 ## Table of Contents
 
-- [NoJail.py](#nojailpy), a python log cleaner.
+- [nojail.py](#nojailpy), a python log cleaner.
 - [share.sh](#sharesh), a secure file sharing script.
+- [autojack.py], a term logger.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## NoJail.py
@@ -126,6 +127,20 @@ and how many days transfer.sh will keep it (`-d`). The default value for both th
 **Warning**: Do not use spaces in the encryption key, or only the first word of your passphrase will be taken into
 account. This is due to the way `getopts` handles arguments (I think). Pull requests are welcome if anyone is interested in
 fixing this.
+
+## autojack.py
+
+AutoJack is a short script leveraging EmptyMonkey's [shelljack](https://github.com/emptymonkey/shelljack) to log the 
+terminal of any user connecting through SSH. It watches ```auth.log``` for successful
+connections, figures out the PID of the user's ```bash``` process,and leaves the rest to 
+```shelljack```.
+ 
+Launch it in a _screen_, and wait until other users log-in. Their session will be
+logged to ```/root/.local/sj.log.[user].[timestamp]```.
+ 
+The script is not particularly stealthy (no attempt is made to hide the ```shelljack``` process) but it
+will get the job done. Note that to avoid self-incrimination, the ```root``` user is not 
+targeted (this can be trivially commented out in the code).
 
 ## Miscellaneous
 
