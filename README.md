@@ -10,10 +10,10 @@ Contributions and pull requests are very welcome.
 
 - [nojail.py](#nojailpy), a python log cleaner.
 - [share.sh](#sharesh), a secure file sharing script.
-- [autojack.py], a term logger.
+- [autojack.py](#autojackpy), a term logger.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
-## NoJail.py
+## nojail.py
 
 A log cleaner which removes incriminating entries in:
 
@@ -150,6 +150,6 @@ use: ```19wFVDUWhrjRe3rPCsokhcf1w9Stj3Sr6K```
 Feel free to drop me a line if you donate to the project, so I can thank you personally!
 
 ### Contact
-[![](https://manalyzer.org/static/mail.png)](mailto:justicerage *at* manalyzer.org)
+[![](https://manalyzer.org/static/mail.png)](justicerage@manalyzer[.]org)
 [![](https://manalyzer.org/static/twitter.png)](https://twitter.com/JusticeRage)
 [![](https://manalyzer.org/static/gpg.png)](https://pgp.mit.edu/pks/lookup?op=vindex&search=0x40E9F0A8F5EA8754)
