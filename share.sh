@@ -30,7 +30,7 @@ function usage()
 # Checks for torify, curl and wget presence.
 function detect_capabilities()
 {
-    TORIFY_PRESENT=0
+    TORIFY_PRESENT=1
     CURL_PRESENT=1
     WGET_PRESENT=1
 

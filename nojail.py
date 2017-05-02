@@ -195,7 +195,7 @@ def secure_delete(target):
             for _ in range(0, 3):
                 f.seek(0)
                 f.write(os.urandom(length))
-        os.remove(f)
+        os.remove(target)
 
 
 ###############################################################################
@@ -233,7 +233,8 @@ def clean_utmp(filename, username, ip, hostname):
                     else:  # The user doesn't want to delete the block.
                         clean_file += block
                 else:
-                    if utmp_struct[4].strip("\x00") == username and utmp_struct[9] > LAST_LOGIN["timestamp"]:
+                    # Do not take failed logins into account when restoring the previous successful connexion.
+                    if filename != LINUX_UTMP_FILES[-1] and utmp_struct[4].strip("\x00") == username and utmp_struct[9] > LAST_LOGIN["timestamp"]:
                         # This is a previous connexion by the "real" user and it's the most recent we've seen.
                         LAST_LOGIN = {"terminal": utmp_struct[2],
                                       "timestamp": utmp_struct[9],
