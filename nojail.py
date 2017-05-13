@@ -17,7 +17,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import argparse
 import datetime
 import gzip
 import os
@@ -30,6 +29,12 @@ import subprocess
 import sys
 import time
 
+# Support both argparse and optparse to work on more Python versions.
+try:
+    import argparse
+except ImportError:
+    argparse = None
+    import optparse
 
 VERBOSE = False
 CHECK_MODE = False
@@ -150,6 +155,7 @@ def get_temp_filename():
 def proper_overwrite(source, destination):
     """
     Overwrites a given file without breaking the file descriptors.
+    The file's access time and modification time are preserved.
     :param source: The new contents of the file.
     :param destination: The file to tamper with.
     :return: Whether the file could be overwritten.
@@ -163,11 +169,13 @@ def proper_overwrite(source, destination):
                     % destination)
         return False
 
+    stat = os.stat(destination)
     ret = os.system("cat %s > %s" % (source, destination))
     if ret != 0:
         if VERBOSE:
             print warning("Command \"cat %s > %s\" failed!" % (source, destination))
         return False
+    os.utime(destination, (stat.st_atime, stat.st_mtime))
     return True
 
 # -----------------------------------------------------------------------------
@@ -480,17 +488,30 @@ def validate_args(args):
 # -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Stealthy log file cleaner.")
-    parser.add_argument("--user", "-u", help="The username to remove from the connexion logs.")
-    parser.add_argument("--ip", "-i", help="The IP address to remove from the logs.")
-    parser.add_argument("--hostname", "-n", help="The hostname of the user to wipe. Defaults to the rDNS of the IP.")
-    parser.add_argument("--verbose", "-v", help="Print debug messages.", action="store_true")
-    parser.add_argument("--check", "-c", help="If present, the user will be asked to confirm each deletion from the "
-                                              "logs.", action="store_true")
-    parser.add_argument("--daemonize", "-d", help="Start in the background and delete logs when the current session "
-                                                  "terminates. This script will then delete itself.", action="store_true")
-    parser.add_argument("log_files", nargs='*', help="Specify any log files to clean in addition to /var/**/*.log.")
-    args = parser.parse_args()
+    if argparse:
+        parser = argparse.ArgumentParser(description="Stealthy log file cleaner.")
+        parser.add_argument("--user", "-u", help="The username to remove from the connexion logs.")
+        parser.add_argument("--ip", "-i", help="The IP address to remove from the logs.")
+        parser.add_argument("--hostname", "-n", help="The hostname of the user to wipe. Defaults to the rDNS of the IP.")
+        parser.add_argument("--verbose", "-v", help="Print debug messages.", action="store_true")
+        parser.add_argument("--check", "-c", help="If present, the user will be asked to confirm each deletion from the "
+                                                  "logs.", action="store_true")
+        parser.add_argument("--daemonize", "-d", help="Start in the background and delete logs when the current session "
+                                                      "terminates. This script will then delete itself.", action="store_true")
+        parser.add_argument("log_files", nargs='*', help="Specify any log files to clean in addition to /var/**/*.log.")
+        args = parser.parse_args()
+    else:  # argparse is unavailable. Fall back to optparse.
+        parser = optparse.OptionParser(description="Stealthy log file cleaner.")
+        parser.add_option("-u", "--user", help="The username to remove from the connexion logs.")
+        parser.add_option("-i", "--ip", help="The IP address to remove from the logs.")
+        parser.add_option("-n", "--hostname", help="The hostname of the user to wipe. Defaults to the rDNS of the IP.")
+        parser.add_option("-v", "--verbose", help="Print debug messages.", action="store_true")
+        parser.add_option("-c", "--check", help="If present, the user will be asked to confirm each deletion from the "
+                                                "logs.", action="store_true")
+        parser.add_option("-d", "--daemonize", help="Start in the background and delete logs when the current session "
+                                                    "terminates. This script will then delete itself.", action="store_true")
+        (args, positional) = parser.parse_args()
+        args.log_files = positional
     validate_args(args)
     print info("Cleaning logs for %s (%s - %s)." % (args.user, args.ip, args.hostname))
 
