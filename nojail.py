@@ -337,7 +337,7 @@ def clean_generic_logs(files, ip, hostname):
     """
     with open(os.devnull, 'w') as devnull:
         p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
-                              "-regex", ".*\.log(\.[0-9]+)(\.gz)?$"],
+                              "-regex", ".*\.log(\.[0-9]+)?(\.gz)?$"],
                              stdout=subprocess.PIPE, stderr=devnull)
         var_logs, stderr = p.communicate()
 
