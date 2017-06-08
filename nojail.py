@@ -76,7 +76,7 @@ def ask_confirmation(message):
             return answers[response]
         elif not response: # Default to yes.
             return True
-
+f
 ###############################################################################
 # Pretty printing functions
 ###############################################################################
@@ -99,7 +99,7 @@ def info(text): return "[ ] " + text
 # File manipulation functions
 ###############################################################################
 
-SAFE_MOUNTPOINT = None  # A writable device set mounted as tmpfs.
+SAFE_MOUNTPOINT = None  # A writable device mounted as tmpfs.
 
 def get_safe_mountpoint():
     """
@@ -527,7 +527,7 @@ if __name__ == "__main__":
             clean_utmp(log, args.user, args.ip, args.hostname)
         clean_lastlog(LINUX_LASTLOG_FILE, args.user, args.ip, args.hostname)
     else:
-        print error("UTMP/WTMP/lastlog/dmesg cannot be cleaned on %s :(" % system)
+        print error("UTMP/WTMP/lastlog cannot be cleaned on %s :(" % system)
 
     clean_generic_logs(args.log_files, args.ip, args.hostname)
 

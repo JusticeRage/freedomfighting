@@ -11,6 +11,7 @@ Contributions and pull requests are very welcome.
 - [nojail.py](#nojailpy), a python log cleaner.
 - [share.sh](#sharesh), a secure file sharing script.
 - [autojack.py](#autojackpy), a term logger.
+- [listurl.py](#listurlpy), a site mapper.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## nojail.py
@@ -141,6 +142,122 @@ logged to ```/root/.local/sj.log.[user].[timestamp]```.
 The script is not particularly stealthy (no attempt is made to hide the ```shelljack``` process) but it
 will get the job done. Note that to avoid self-incrimination, the ```root``` user is not 
 targeted (this can be trivially commented out in the code).
+
+## listurl.py
+
+ListURL is a multi-threaded website crawler which obtains a list of available pages from the target. This script is 
+useful for bug-bounty hunters trying to establish the attack surface of a web application.
+
+```
+usage: listurl.py [-h] [--max-depth MAX_DEPTH] [--threads THREADS] [--url URL]
+                  [--external] [--subdomains] [-c COOKIE]
+                  [--exclude-regexp EXCLUDE_REGEXP]
+                  [--show-regexp SHOW_REGEXP] [--verbose]
+
+Map a website by recursively grabbing all its URLs.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --max-depth MAX_DEPTH, -m MAX_DEPTH
+                        The maximum depth to crawl (default is 3).
+  --threads THREADS, -t THREADS
+                        The number of threads to use (default is 10).
+  --url URL, -u URL     The page to start from.
+  --external, -e        Follow external links (default is false).
+  --subdomains, -d      Include subdomains in the scope (default is false).
+  -c COOKIE, --cookie COOKIE
+                        Add a cookies to the request. May be specified
+                        multiple times.Example: -c "user=admin".
+  --exclude-regexp EXCLUDE_REGEXP, -r EXCLUDE_REGEXP
+                        A regular expression matching URLs to ignore. The
+                        givenexpression doesn't need to match the whole URL,
+                        only a partof it.
+  --show-regexp SHOW_REGEXP, -s SHOW_REGEXP
+                        A regular expression filtering displayed results. The
+                        given expression is searched inside the results, it
+                        doesn't have tomatch the whole URL. Example: \.php$
+  --verbose, -v         Be more verbose. Can be specified multiple times.
+```
+
+Here is the sample output for a small website:
+
+```
+./listurl.py -u https://manalyzer.org
+[*] Started crawling at depth 1.
+[*] Started crawling at depth 2....
+[*] Started crawling at depth 3.
+[*] URLs discovered:
+https://manalyzer.org/report/f32d9d9ff788998234fe2b542f61ee2c (GET)
+https://manalyzer.org/report/eb4d2382c25c887ebc7775d56c417c6a (GET)
+https://manalyzer.org/report/ca127ebd958b98c55ee4ef277a1d3547 (GET)
+https://manalyzer.org/upload (POST)
+https://manalyzer.org/report/dd6762a2897432fdc7406fbd2bc2fe18 (GET)
+https://manalyzer.org/report/2fba831cab210047c7ec651ebdf63f50 (GET)
+https://manalyzer.org/report/029284d88f7b8586059ddcc71031c1f1 (GET)
+https://manalyzer.org/ (GET)
+https://manalyzer.org/report/83f3c2b72e3b98e2a72ae5fdf92c164e (GET)
+https://manalyzer.org/report/1bf9277cc045362472d1ba55e4d31dd5 (GET)
+https://manalyzer.org/report/af09bf587303feb4a9e9088b17631254 (GET)
+https://manalyzer.org/report/508d8094be65eaae4d481d40aacb2925 (GET)
+https://manalyzer.org/report/0e8592aa78d6e5a14043ab466601ef9b (GET)
+https://manalyzer.org/report/b52ddc0dda64f35721d5692e168ad58c (GET)
+https://manalyzer.org (GET)
+https://manalyzer.org/bounty (GET)
+https://manalyzer.org/search (POST)
+```
+
+### Filtering results
+
+The ``--exclude-regexp`` and ``--show-regexp`` options are used to control which 
+URLs should be shown or ignored. For instance, in the example above, you may want
+to ignore pages which are likely to be very similar: 
+
+```./listurl.py -u https://manalyzer.org --exclude-regexp "/report/"
+   [*] Started crawling at depth 1.
+   [*] Started crawling at depth 2...
+   [*] Started crawling at depth 3.
+   [*] URLs discovered:
+   https://manalyzer.org (GET)
+   https://manalyzer.org/bounty (GET)
+   https://manalyzer.org/upload (POST)
+   https://manalyzer.org/search (POST)
+   https://manalyzer.org/ (GET)
+```
+
+Note that the matching URLs will *not* be crawled. This is particularly useful
+when the script gets lost in deep comment pages or repetitive content. Alternately, 
+you may only be interested in PHP scripts: ``./listurl.py --show-regexp "\.php$"``.
+
+### Crawl parameters
+
+By default, the crawler only goes 3 levels deep. This is something you can control
+with the ``--max-depth`` option.
+
+Another consideration is whether URLs pointing to external domains should be followed.
+By default, the script doesn't, but you can enable this by setting the ``--external``
+switch. If you're not interested in random external domains but still want to extend
+the crawl to subdomains, you can set the ``--subdomains`` switch:
+
+```./listurl.py -u https://google.com --subdomains
+[*] Started crawling at depth 1.
+[*] Started crawling at depth 2.^C
+Interrupt caught! Please wait a few seconds while the threads shut down...
+[*] URLs discovered:
+https://drive.google.com/drive/ (GET)
+https://google.com/../../policies/privacy/example/phone-number.html (GET)
+https://play.google.com/store/books/details/Markus_Heitz_Le_Secret_de_l_eau_noire?id=Oh1rDgAAQBAJ (GET)
+https://play.google.com/store/books/details/Leslie_Kelly_Face_au_d%C3%A9sir?id=mUtyDAAAQBAJ (GET)
+https://mail.google.com/mail/?tab=Tm (GET)
+https://google.com/../../policies/privacy/example/your-activity-on-other-sites-and-apps.html (GET)
+https://google.com/locations/ (GET)
+[...]
+```
+
+Notice that if the script takes too long, you can hit CTRL+C anytime to shut
+it down. You'll then be shown the pages discovered so far.
+
+Finally, if you need to access authenticated pages on a website, you can provide
+cookies to listurl.py from the command line with the ``--cookie`` option.
 
 ## Miscellaneous
 
