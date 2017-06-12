@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import operator
 import Queue
 import re
 import requests
@@ -123,6 +124,27 @@ class PrinterThread(threading.Thread):
 # Object model
 ###############################################################################
 
+class InputParameter:
+    """
+    This class represents a POST parameter.
+    Value is unused at the moment but could be useful in subsequent versions
+    of the script.
+    """
+    def __init__(self, name, value, param_type):
+        self.name = name
+        self.value = value
+        self.type = param_type.upper()
+
+    def __str__(self):
+        return "%s (%s)" % (self.name, self.type)
+
+    def __eq__(self, other):
+        if not isinstance(other, InputParameter):
+            return False
+        return self.name == other.name
+
+# -----------------------------------------------------------------------------
+
 class GrabbedURL:
     def __init__(self, url, method="GET"):
         """
@@ -135,14 +157,20 @@ class GrabbedURL:
             raise ValueError()
         self.url = url
         self.method = method.upper()
+        self.parameters = None
 
     def __str__(self):
-        return "%s (%s)" % (self.url, self.method)
+        if self.parameters is None:
+            return "[%s] %s%s" % (self.method, " " if self.method == "GET" else "", self.url)
+        else:
+            res = "[%s] %s%s - params = %s" % (self.method, " " if self.method == "GET" else "", self.url,
+                                              ", ".join(p.__str__() for p in self.parameters))
+            return res
 
     def __eq__(self, other):
         if not isinstance(other, GrabbedURL):
             return False
-        return self.url == other.url and self.method == other.method
+        return self.url == other.url and self.method == other.method and self.parameters == other.parameters
 
     def __hash__(self):
         """
@@ -243,8 +271,15 @@ def extract_urls(page_data, page_url):
     for link in soup.find_all("form"):
         if link.get("action"):
             try:
-                # TODO: get parameter names from the input fields
-                urls.add(GrabbedURL(process_url(link.get("action"), page_url), link.get("method", "GET")))
+                grabbed_url = GrabbedURL(process_url(link.get("action"), page_url), link.get("method", "GET"))
+                # Also list the possible POST parameters
+                params = []
+                for inp in link.find_all("input"):
+                    if inp.get("name"):
+                        params.append(InputParameter(inp.get("name"), inp.get("value"), inp.get("type")))
+                if params:
+                    grabbed_url.parameters = params
+                urls.add(grabbed_url)
             except ValueError:  # May be thrown if the URL is to be rejected
                 continue
 
@@ -373,7 +408,7 @@ def main():
 
     # Print results
     PRINT_QUEUE.put(success("URLs discovered:"))
-    for url in found_urls:
+    for url in sorted(found_urls, key=operator.attrgetter('url')):
         if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
             PRINT_QUEUE.put(url)
 
