@@ -2,6 +2,7 @@
 
 import argparse
 import operator
+import os
 import Queue
 import re
 import requests
@@ -44,6 +45,7 @@ def parse_arguments():
     parser.add_argument("--show-regexp", "-s", help="A regular expression filtering displayed results. The given "
                                                     "expression is searched inside the results, it doesn't have to"
                                                     "match the whole URL. Example: \.php$")
+    parser.add_argument("--output-file", "-o", help="The file into which the obtained URLs should be written")
     parser.add_argument("--verbose", "-v", help="Be more verbose. Can be specified multiple times.", action="count",
                         default=0)
     args = parser.parse_args()
@@ -64,6 +66,10 @@ def parse_arguments():
             cookie = c.split('=')
             cookie_dict[cookie[0]] = cookie[1]
         COOKIES = requests.utils.cookiejar_from_dict(cookie_dict)
+
+    if args.output_file and os.path.exists(args.output_file):
+        print error("%s already exists! Aborting to avoid overwriting it." % args.output_file)
+        sys.exit(1)
 
     return args
 
@@ -353,7 +359,7 @@ def main():
     found_urls.add(GrabbedURL(ARGS.url))
     for depth in range(0, ARGS.max_depth):
         try:
-            PRINT_QUEUE.put(success("Started crawling at depth %d." % (depth + 1)))
+            PRINT_QUEUE.put(success("Started crawling at depth %d.     " % (depth + 1)))
 
             # Extract obtained URLs
             round_urls = set()
@@ -407,10 +413,17 @@ def main():
             break
 
     # Print results
-    PRINT_QUEUE.put(success("URLs discovered:"))
-    for url in sorted(found_urls, key=operator.attrgetter('url')):
-        if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
-            PRINT_QUEUE.put(url)
+    if not ARGS.output_file:
+        PRINT_QUEUE.put(success("URLs discovered:"))
+        for url in sorted(found_urls, key=operator.attrgetter('url')):
+            if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
+                PRINT_QUEUE.put(url)
+    else:
+        with open(ARGS.output_file, 'w') as f:
+            for url in sorted(found_urls, key=operator.attrgetter('url')):
+                if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
+                    f.write(url.__str__() + os.linesep)
+        PRINT_QUEUE.put(success("Discovered URLs were written to %s." % ARGS.output_file))
 
     # Cleanup
     printer_thread.kill()

@@ -176,6 +176,9 @@ optional arguments:
                         A regular expression filtering displayed results. The
                         given expression is searched inside the results, it
                         doesn't have tomatch the whole URL. Example: \.php$
+  --output-file OUTPUT_FILE, -o OUTPUT_FILE
+                        The file into which the obtained URLs should be
+                        written
   --verbose, -v         Be more verbose. Can be specified multiple times.
 ```
 
@@ -212,7 +215,8 @@ The ``--exclude-regexp`` and ``--show-regexp`` options are used to control which
 URLs should be shown or ignored. For instance, in the example above, you may want
 to ignore pages which are likely to be very similar: 
 
-```./listurl.py -u https://manalyzer.org --exclude-regexp "/report/"
+```
+./listurl.py -u https://manalyzer.org --exclude-regexp "/report/"
    [*] Started crawling at depth 1.
    [*] Started crawling at depth 2...
    [*] Started crawling at depth 3.
@@ -238,7 +242,8 @@ By default, the script doesn't, but you can enable this by setting the ``--exter
 switch. If you're not interested in random external domains but still want to extend
 the crawl to subdomains, you can set the ``--subdomains`` switch:
 
-```./listurl.py -u https://google.com --subdomains
+```
+./listurl.py -u https://google.com --subdomains
 [*] Started crawling at depth 1.
 [*] Started crawling at depth 2.^C
 Interrupt caught! Please wait a few seconds while the threads shut down...
