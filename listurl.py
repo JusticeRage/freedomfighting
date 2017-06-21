@@ -45,6 +45,8 @@ def parse_arguments():
     parser.add_argument("--show-regexp", "-s", help="A regular expression filtering displayed results. The given "
                                                     "expression is searched inside the results, it doesn't have to"
                                                     "match the whole URL. Example: \.php$")
+    parser.add_argument("--no-certificate-check", "-n", help="Disables the verification of SSL certificates.",
+                        action="store_false", default=True)
     parser.add_argument("--output-file", "-o", help="The file into which the obtained URLs should be written")
     parser.add_argument("--verbose", "-v", help="Be more verbose. Can be specified multiple times.", action="count",
                         default=0)
@@ -195,6 +197,7 @@ def create_session():
     """
     session = requests.session()
     session.headers = USER_AGENT
+    session.verify = ARGS.no_certificate_check
     if COOKIES:
         session.cookies = COOKIES
     return session
@@ -325,6 +328,10 @@ class RequesterThread(threading.Thread):
                         self.oq.put(url)
 
                 # HTTP error: log and proceed to the next URL.
+                except requests.exceptions.SSLError as e:
+                    PRINT_QUEUE.put(error(e.message.__str__()))
+                    PRINT_QUEUE.put(error("An SSL error was detected. If this is expected, please re-run the program "
+                                          "with --no-certificate-check (-n)."))
                 except requests.RequestException as e:
                     PRINT_QUEUE.put(error(e.message.__str__()))
 

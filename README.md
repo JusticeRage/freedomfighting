@@ -176,6 +176,8 @@ optional arguments:
                         A regular expression filtering displayed results. The
                         given expression is searched inside the results, it
                         doesn't have tomatch the whole URL. Example: \.php$
+  --no-certificate-check, -n
+                        Disables the verification of SSL certificates.
   --output-file OUTPUT_FILE, -o OUTPUT_FILE
                         The file into which the obtained URLs should be
                         written
@@ -261,8 +263,11 @@ https://google.com/locations/ (GET)
 Notice that if the script takes too long, you can hit CTRL+C anytime to shut
 it down. You'll then be shown the pages discovered so far.
 
-Finally, if you need to access authenticated pages on a website, you can provide
+If you need to access authenticated pages on a website, you can provide
 cookies to listurl.py from the command line with the ``--cookie`` option.
+
+Finally, if you're working on a website which has an invalid or self-signed SSL 
+certificate, use the `--no-certificate-check` option to ignore SSL errors.
 
 ## Miscellaneous
 
