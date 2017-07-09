@@ -18,6 +18,7 @@
 """
 
 import datetime
+import glob
 import gzip
 import os
 import platform
@@ -41,7 +42,7 @@ CHECK_MODE = False
 
 LINUX_UTMP_FILES = ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp"]
 LINUX_LASTLOG_FILE = "/var/log/lastlog"
-LINUX_ADDITIONAL_LOGS = ["/var/log/syslog", "/var/log/messages", "/var/log/secure"]
+LINUX_ADDITIONAL_LOGS = ["/var/log/messages", "/var/log/secure"]
 UTMP_BLOCK_SIZE = 384  # Might vary depending on the distribution
 LASTLOG_BLOCK_SIZE = 292
 UTMP_UNPACK_STRING = "hi32s4s32s256s2h3i36x"
@@ -337,7 +338,7 @@ def clean_generic_logs(files, ip, hostname):
     """
     with open(os.devnull, 'w') as devnull:
         p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
-                              "-regex", ".*\.log(\.[0-9]+)?(\.gz)?$"],
+                              "-regex", ".*(\.|/sys)log(\.[0-9]+)?(\.gz)?$", "-type", "f", ],
                              stdout=subprocess.PIPE, stderr=devnull)
         var_logs, stderr = p.communicate()
 
@@ -346,7 +347,15 @@ def clean_generic_logs(files, ip, hostname):
     additional_files = None
     if platform.system() == "Linux":
         additional_files = LINUX_ADDITIONAL_LOGS
-    targets = set(filter(lambda x: x.strip(), var_logs.split('\n')) + files + additional_files)
+    targets = set(filter(lambda x: x.strip(), var_logs.split('\n')) + additional_files)
+
+    # Process the list of files given by the user.
+    for f in files:
+        if not os.path.isdir(f):
+            targets.add(f)
+        else:
+            targets.update([x for x in glob.glob(os.path.join(f, "*")) if not os.path.isdir(x)])
+
     for log in targets:
         if not os.path.exists(log):  # One of the additional files (i.e. /var/log/secure doesn't exist. Ignore.
             continue
@@ -357,19 +366,26 @@ def clean_generic_logs(files, ip, hostname):
 
         cleaned_entries = 0
         tmp_file = get_temp_filename()
-        with open(tmp_file, "wb") if not log.endswith(".gz") else gzip.open(tmp_file, "wb") as g:
-            with open(log, 'r') if not log.endswith(".gz") else gzip.open(log, "rb") as f:
-                while True:
-                    line = f.readline()
-                    if not line:
-                        break
-                    if ip in line or hostname in line:
-                        if CHECK_MODE and not ask_confirmation("About to delete the following line from %s: %s." % (log, line.rstrip("\n"))):
-                            g.write(line)  # The user wants to keep this line.
-                        else:
-                            cleaned_entries += 1  # Exclude this line.
+        f, g = (None, None)
+        try:
+            g = open(tmp_file, "wb") if not log.endswith(".gz") else gzip.open(tmp_file, "wb")
+            f = open(log, 'r') if not log.endswith(".gz") else gzip.open(log, "rb")
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                if ip in line or hostname in line:
+                    if CHECK_MODE and not ask_confirmation("About to delete the following line from %s: %s." % (log, line.rstrip("\n"))):
+                        g.write(line)  # The user wants to keep this line.
                     else:
-                        g.write(line)  # IP or hostname is not present. Write the line.
+                        cleaned_entries += 1  # Exclude this line.
+                else:
+                    g.write(line)  # IP or hostname is not present. Write the line.
+        finally:
+            if f is not None:
+                f.close()
+            if g is not None:
+                g.close()
 
         # Done reading the input file. Overwrite it if needed and report the findings.
         if cleaned_entries == 0:
