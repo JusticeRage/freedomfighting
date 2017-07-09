@@ -76,7 +76,7 @@ def ask_confirmation(message):
             return answers[response]
         elif not response: # Default to yes.
             return True
-f
+
 ###############################################################################
 # Pretty printing functions
 ###############################################################################
@@ -322,7 +322,7 @@ def clean_lastlog(filename, username, ip, hostname):
                                                                LAST_LOGIN["terminal"],
                                                                LAST_LOGIN["hostname"]))
         else:
-            print success("Removed %s's login information from lastlog!")
+            print success("Removed %s's login information from lastlog!" % username)
 
 # -----------------------------------------------------------------------------
 
