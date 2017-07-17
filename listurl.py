@@ -1,5 +1,22 @@
 #!/usr/bin/env python
 
+"""
+    listurl.py by @JusticeRage
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import argparse
 import operator
 import os
@@ -419,18 +436,20 @@ def main():
             found_urls |= round_urls
             break
 
-    # Print results
-    if not ARGS.output_file:
+    # Print results if URLs were found (otherwise, found_urls only contains the input URL).
+    if not ARGS.output_file and not len(found_urls) == 1:
         PRINT_QUEUE.put(success("URLs discovered:"))
         for url in sorted(found_urls, key=operator.attrgetter('url')):
             if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
                 PRINT_QUEUE.put(url)
-    else:
+    elif not len(found_urls) == 1:
         with open(ARGS.output_file, 'w') as f:
             for url in sorted(found_urls, key=operator.attrgetter('url')):
                 if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
                     f.write(url.__str__() + os.linesep)
         PRINT_QUEUE.put(success("Discovered URLs were written to %s." % ARGS.output_file))
+    else:
+        PRINT_QUEUE.put(error("No URLs were found."))
 
     # Cleanup
     printer_thread.kill()

