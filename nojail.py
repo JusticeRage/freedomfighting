@@ -199,11 +199,16 @@ def secure_delete(target):
         if VERBOSE:
             print warning("shred is not available. Falling back to manual "
                           "secure file deletion.")
-        with open(target, "ab+") as f:
+        f = None
+        try:
+            f = open(target, "ab+")
             length = f.tell()
             for _ in range(0, 3):
                 f.seek(0)
                 f.write(os.urandom(length))
+        finally:
+            if f is not None:
+                f.close()
         os.remove(target)
 
 
@@ -219,50 +224,63 @@ def clean_utmp(filename, username, ip, hostname):
         print warning("%s does not exist." % filename)
         return  # Nothing to do
 
+    f = None
     try:
-        with open(filename, 'rb') as f:
-            while True:
-                block = f.read(UTMP_BLOCK_SIZE)
-                if not block:
-                    break
-                # Assert that the last 20 bytes are 0s (the "__unused" field)
-                if block[-20:] != "\x00" * 20:
-                    print error("This distribution may not be using the expected UTMP block size. "
-                                "%s will NOT be cleaned!" % filename)
-                    return
-                utmp_struct = struct.unpack(UTMP_UNPACK_STRING, block)
-                # Only drop blocks which match both the user and the IP address.
-                if utmp_struct[5].strip("\x00") in [hostname, ip]:
-                    if (not CHECK_MODE) or (CHECK_MODE and ask_confirmation("About to delete a record in %s for a %s "
-                            "login from %s on %s." % (filename,
-                                                      utmp_struct[4].strip("\x00"),
-                                                      utmp_struct[5].strip("\x00"),
-                                                      datetime.datetime.fromtimestamp(int(utmp_struct[9])).strftime('%Y-%m-%d %H:%M:%S')))):
-                        cleaned_entries += 1
-                    else:  # The user doesn't want to delete the block.
-                        clean_file += block
-                else:
-                    # Do not take failed logins into account when restoring the previous successful connexion.
-                    if filename != LINUX_UTMP_FILES[-1] and utmp_struct[4].strip("\x00") == username and utmp_struct[9] > LAST_LOGIN["timestamp"]:
-                        # This is a previous connexion by the "real" user and it's the most recent we've seen.
-                        LAST_LOGIN = {"terminal": utmp_struct[2],
-                                      "timestamp": utmp_struct[9],
-                                      "hostname": utmp_struct[5]}
+        f = open(filename, 'rb')
+        while True:
+            block = f.read(UTMP_BLOCK_SIZE)
+            if not block:
+                break
+            # Assert that the last 20 bytes are 0s (the "__unused" field)
+            if block[-20:] != "\x00" * 20:
+                print error("This distribution may not be using the expected UTMP block size. "
+                            "%s will NOT be cleaned!" % filename)
+                if f is not None:
+                    f.close()
+                return
+            utmp_struct = struct.unpack(UTMP_UNPACK_STRING, block)
+            # Only drop blocks which match both the user and the IP address.
+            if utmp_struct[5].strip("\x00") in [hostname, ip]:
+                if (not CHECK_MODE) or (CHECK_MODE and ask_confirmation("About to delete a record in %s for a %s "
+                        "login from %s on %s." % (filename,
+                                                  utmp_struct[4].strip("\x00"),
+                                                  utmp_struct[5].strip("\x00"),
+                                                  datetime.datetime.fromtimestamp(int(utmp_struct[9])).strftime('%Y-%m-%d %H:%M:%S')))):
+                    cleaned_entries += 1
+                else:  # The user doesn't want to delete the block.
                     clean_file += block
-
-            if cleaned_entries == 0:  # Nothing to remove from the file. Error in the args?
-                print info("No entries to remove from %s." % filename)
             else:
-                # Replace the old contents with the filtered one.
-                tmp_file = get_temp_filename()
-                with open(tmp_file, "wb") as g:
-                    g.write(clean_file)
-                if proper_overwrite(tmp_file, filename):
-                    print success("%s entries removed from %s!" % (cleaned_entries, filename))
-                secure_delete(tmp_file)
+                # Do not take failed logins into account when restoring the previous successful connexion.
+                if filename != LINUX_UTMP_FILES[-1] and utmp_struct[4].strip("\x00") == username and utmp_struct[9] > LAST_LOGIN["timestamp"]:
+                    # This is a previous connexion by the "real" user and it's the most recent we've seen.
+                    LAST_LOGIN = {"terminal": utmp_struct[2],
+                                  "timestamp": utmp_struct[9],
+                                  "hostname": utmp_struct[5]}
+                clean_file += block
+
+        if cleaned_entries == 0:  # Nothing to remove from the file. Error in the args?
+            print info("No entries to remove from %s." % filename)
+        else:
+            # Replace the old contents with the filtered one.
+            tmp_file = get_temp_filename()
+            g = None
+            try:
+                g = open(tmp_file, "wb")
+                g.write(clean_file)
+            finally:
+                if g is not None:
+                    g.close()
+            if proper_overwrite(tmp_file, filename):
+                print success("%s entries removed from %s!" % (cleaned_entries, filename))
+            secure_delete(tmp_file)
+        if f is not None:
+            f.close()
 
     except IOError:
         print error("Unable to read or write to %s. Logfile will NOT be cleaned." % filename)
+        if f is not None:
+            f.close()
+
 
 # -----------------------------------------------------------------------------
 
@@ -283,7 +301,9 @@ def clean_lastlog(filename, username, ip, hostname):
         return  # Nothing to do
 
     clean_file = ""
-    with open(filename, 'rb') as f:
+    f = None
+    try:
+        f = open(filename, 'rb')
         # Go to the block corresponding to the user's UID.
         uid = pwd.getpwnam(username).pw_uid
         if uid != 0:
@@ -309,8 +329,13 @@ def clean_lastlog(filename, username, ip, hostname):
         # Append the rest of the file and overwrite lastlog:
         clean_file += f.read()
         tmp_file = get_temp_filename()
-        with open(tmp_file, "wb") as g:
+        g = None
+        try:
+            g = open(tmp_file, "wb")
             g.write(clean_file)
+        finally:
+            if g is not None:
+                g.close()
         success_flag = proper_overwrite(tmp_file, filename)
         secure_delete(tmp_file)
 
@@ -324,6 +349,9 @@ def clean_lastlog(filename, username, ip, hostname):
                                                                LAST_LOGIN["hostname"]))
         else:
             print success("Removed %s's login information from lastlog!" % username)
+    finally:
+        if f is not None:
+            f.close()
 
 # -----------------------------------------------------------------------------
 
@@ -336,11 +364,16 @@ def clean_generic_logs(files, ip, hostname):
     :param hostname: The hostname to scrub from the logs.
     :return:
     """
-    with open(os.devnull, 'w') as devnull:
+    devnull = None
+    try:
+        devnull = open(os.devnull, 'w')
         p = subprocess.Popen(["find", "/var", "-regextype", "posix-egrep",
                               "-regex", ".*(\.|/sys)log(\.[0-9]+)?(\.gz)?$", "-type", "f", ],
                              stdout=subprocess.PIPE, stderr=devnull)
         var_logs, stderr = p.communicate()
+    finally:
+        if devnull is not None:
+            devnull.close()
 
     # Merge the found logs with the known ones and the files requested by the user to create a list
     # of all the files to clean.
@@ -368,8 +401,14 @@ def clean_generic_logs(files, ip, hostname):
         tmp_file = get_temp_filename()
         f, g = (None, None)
         try:
-            g = open(tmp_file, "wb") if not log.endswith(".gz") else gzip.open(tmp_file, "wb")
-            f = open(log, 'r') if not log.endswith(".gz") else gzip.open(log, "rb")
+            if not log.endswith(".gz"):
+                g = open(tmp_file, "wb")
+            else:
+                g = gzip.open(tmp_file, "wb")
+            if not log.endswith(".gz"):
+                f = open(log, 'r')
+            else:
+                f = gzip.open(log, "rb")
             while True:
                 line = f.readline()
                 if not line:
@@ -416,7 +455,8 @@ def daemonize():
             if pid > 0:
                 # Exit parent
                 sys.exit(0)
-        except OSError as e:
+        except OSError:
+            _, e = sys.exc_info()[:2]
             print "Error while forking! (%s)" % e.message
             sys.exit(1)
 
