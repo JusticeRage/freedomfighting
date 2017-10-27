@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # EDIT THE PARAMETERS BELOW THIS LINE
 ###############################################################################
 
-HOST = "66.70.189.175"
+HOST = ""
 PORT = 443
 SHELL = ["/bin/bash", "--noprofile"]
 FIRST_COMMAND = "unset HISTFILE"

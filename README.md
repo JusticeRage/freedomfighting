@@ -316,7 +316,7 @@ the reverse shell and the listener can authenticate each other. Specifically:
 - ```client_crt``` should contain the contents of ```client.crt```.
 - ```server_crt``` should contain the contents of ```server.crt```.
 
-That's it, no more editing required. The
+That's it, no more editing required.
 
 ### Setting up the listener
 
