@@ -17,22 +17,25 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import argparse
-import operator
-import os
-import Queue
-import re
-import requests
-import sys
-import threading
-import urlparse
+# Standard library imports
+from argparse import ArgumentParser
+from operator import attrgetter
+from os import linesep, path
+from Queue import Empty, Queue
+from re import search
+from sys import stdout
+from threading import Thread
+from urlparse import urljoin, urlparse
+
+# Third party library imports
+from requests import exceptions, RequestException, Session, utils
 
 try:
     from bs4 import BeautifulSoup
 except ImportError:
     print "[\033[91m!\033[0m] BeautifulSoup is not installed! Please run '\033[93mpip install beautifulsoup4\033[0m' " \
           "and launch this script again."
-    sys.exit(1)
+    exit(1)
 
 ARGS = None
 IGNORED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".doc", ".docx", ".eps", ".wav"]
@@ -45,7 +48,7 @@ PRINT_QUEUE = None
 ###############################################################################
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Map a website by recursively grabbing all its URLs.")
+    parser = ArgumentParser(description="Map a website by recursively grabbing all its URLs.")
     parser.add_argument("--max-depth", "-m", help="The maximum depth to crawl (default is 3).", default=3, type=int)
     parser.add_argument("--threads", "-t", help="The number of threads to use (default is 10).", default=10, type=int)
     parser.add_argument("--url", "-u", help="The page to start from.")
@@ -61,7 +64,7 @@ def parse_arguments():
                                                        "of it.")
     parser.add_argument("--show-regexp", "-s", help="A regular expression filtering displayed results. The given "
                                                     "expression is searched inside the results, it doesn't have to"
-                                                    "match the whole URL. Example: \.php$")
+                                                    "match the whole URL. Example: \\.php$")
     parser.add_argument("--no-certificate-check", "-n", help="Disables the verification of SSL certificates.",
                         action="store_false", default=True)
     parser.add_argument("--output-file", "-o", help="The file into which the obtained URLs should be written")
@@ -72,7 +75,7 @@ def parse_arguments():
     if args.url is None:
         print error("Please specify the URL to start from with the -u option.")
         parser.print_help()
-        sys.exit(1)
+        exit(1)
 
     # Convert the cookie argument into a requests cookiejar.
     if args.cookie:
@@ -81,14 +84,14 @@ def parse_arguments():
         for c in args.cookie:
             if c.count('=') != 1:
                 print error("Input cookie should be in the form key=value (received: %s)!" % c)
-                sys.exit(1)
+                exit(1)
             cookie = c.split('=')
             cookie_dict[cookie[0]] = cookie[1]
-        COOKIES = requests.utils.cookiejar_from_dict(cookie_dict)
+        COOKIES = utils.cookiejar_from_dict(cookie_dict)
 
-    if args.output_file and os.path.exists(args.output_file):
+    if args.output_file and path.exists(args.output_file):
         print error("%s already exists! Aborting to avoid overwriting it." % args.output_file)
-        sys.exit(1)
+        exit(1)
 
     return args
 
@@ -111,7 +114,7 @@ def info(text): return "[ ] " + text
 
 # -----------------------------------------------------------------------------
 
-class PrinterThread(threading.Thread):
+class PrinterThread(Thread):
     """
     A thread which is in charge of printing messages to stdout.
     This is introduced so that multiple threads don't try to write things
@@ -134,11 +137,11 @@ class PrinterThread(threading.Thread):
                 message = self.pq.get(timeout=2)
                 if message and message.__str__()[-1] == '\r':
                     print message,
-                    sys.stdout.flush()
+                    stdout.flush()
                 else:
                     print message
                 self.pq.task_done()
-            except Queue.Empty:
+            except Empty:
                 if not self.alive:
                     return
 
@@ -187,10 +190,9 @@ class GrabbedURL:
     def __str__(self):
         if self.parameters is None:
             return "[%s] %s%s" % (self.method, " " if self.method == "GET" else "", self.url)
-        else:
-            res = "[%s] %s%s - params = %s" % (self.method, " " if self.method == "GET" else "", self.url,
-                                              ", ".join(p.__str__() for p in self.parameters))
-            return res
+        res = "[%s] %s%s - params = %s" % (self.method, " " if self.method == "GET" else "", self.url,
+                                           ", ".join(p.__str__() for p in self.parameters))
+        return res
 
     def __eq__(self, other):
         if not isinstance(other, GrabbedURL):
@@ -210,9 +212,9 @@ class GrabbedURL:
 def create_session():
     """
     Creates a requests session preloaded with the user-agent and cookies to use.
-    :return: A requests.Session object.
+    :return: A Session object.
     """
-    session = requests.session()
+    session = Session()
     session.headers = USER_AGENT
     session.verify = ARGS.no_certificate_check
     if COOKIES:
@@ -232,12 +234,12 @@ def process_url(url, parent_url):
     that the parent's URL has already been normalized.
     :return: A normalized URL, or None if the URL should be rejected.
     """
-    parent_purl = urlparse.urlparse(parent_url)  # purl = parsed url
+    parent_purl = urlparse(parent_url)  # purl = parsed url
     if not url.startswith('http') and not url.startswith("//"):  # "//" for protocol-relative URLs
-        url = urlparse.urljoin(parent_purl.scheme + "://" + parent_purl.netloc, url)
-        purl = urlparse.urlparse(url)
+        url = urljoin(parent_purl.scheme + "://" + parent_purl.netloc, url)
+        purl = urlparse(url)
     else:
-        purl = urlparse.urlparse(url)
+        purl = urlparse(url)
         # The following boolean expression is a little complex. Basically, it verifies that:
         # - ARGS.external is enabled (A) if the URL points to an external domain (B)
         # - ARGS.subdomains is enabled (C) if the URL point to a subdomain (D)
@@ -266,7 +268,7 @@ def process_url(url, parent_url):
             return None
 
     # Ignore URLs matching the input regexp (optional)
-    if ARGS.exclude_regexp and re.search(ARGS.exclude_regexp, url) is not None:
+    if ARGS.exclude_regexp and search(ARGS.exclude_regexp, url) is not None:
         if ARGS.verbose > 1:
             PRINT_QUEUE.put(info("Ignoring %s due to the regular expression." % url))
         return None
@@ -301,7 +303,7 @@ def extract_urls(page_data, page_url):
                 # Also list the possible POST parameters
                 params = []
                 for inp in link.find_all("input"):
-                    if inp.get("name"):
+                    if inp.get("name") and inp.get("type") is not None:
                         params.append(InputParameter(inp.get("name"), inp.get("value"), inp.get("type")))
                 if params:
                     grabbed_url.parameters = params
@@ -313,7 +315,7 @@ def extract_urls(page_data, page_url):
 
 # -----------------------------------------------------------------------------
 
-class RequesterThread(threading.Thread):
+class RequesterThread(Thread):
     def __init__(self, input_queue, output_queue):
         super(RequesterThread, self).__init__()
         self.session = create_session()
@@ -345,15 +347,15 @@ class RequesterThread(threading.Thread):
                         self.oq.put(url)
 
                 # HTTP error: log and proceed to the next URL.
-                except requests.exceptions.SSLError as e:
+                except exceptions.SSLError as e:
                     PRINT_QUEUE.put(error(e.message.__str__()))
                     PRINT_QUEUE.put(error("An SSL error was detected. If this is expected, please re-run the program "
                                           "with --no-certificate-check (-n)."))
-                except requests.RequestException as e:
+                except RequestException as e:
                     PRINT_QUEUE.put(error(e.message.__str__()))
 
                 self.iq.task_done()
-        except Queue.Empty:  # No more items to process. Let the thread die.
+        except Empty:  # No more items to process. Let the thread die.
             return
 
 ###############################################################################
@@ -365,9 +367,9 @@ def main():
     global ARGS, PRINT_QUEUE
     ARGS = parse_arguments()
 
-    input_queue = Queue.Queue()  # Stores URLs to crawl
-    output_queue = Queue.Queue()  # Stores URLs discovered
-    PRINT_QUEUE = Queue.Queue()  # Receives messages to print
+    input_queue = Queue()  # Stores URLs to crawl
+    output_queue = Queue()  # Stores URLs discovered
+    PRINT_QUEUE = Queue()  # Receives messages to print
 
     # Start a thread to handle stdout gracefully.
     printer_thread = PrinterThread(PRINT_QUEUE)
@@ -391,7 +393,7 @@ def main():
                 for url in iter(output_queue.get_nowait, None):
                     round_urls.add(url)
                     output_queue.task_done()
-            except Queue.Empty:
+            except Empty:
                 pass
 
             # Add newly discovered URLs to the input queue.
@@ -405,7 +407,7 @@ def main():
             # join() on each individual thread.
             threads = []
             max_round_requests = input_queue.qsize()
-            for i in range(0, ARGS.threads):
+            for _ in range(0, ARGS.threads):
                 t = RequesterThread(input_queue, output_queue)
                 t.daemon = True
                 t.start()
@@ -425,13 +427,13 @@ def main():
             try:
                 for _ in iter(input_queue.get_nowait, None):
                     input_queue.task_done()  # Empty the input queue to stop the threads
-            except Queue.Empty:
+            except Empty:
                 pass
             try:
                 for url in iter(output_queue.get_nowait, None):
                     round_urls.add(url)
                     output_queue.task_done()
-            except Queue.Empty:
+            except Empty:
                 pass
             found_urls |= round_urls
             break
@@ -439,14 +441,14 @@ def main():
     # Print results if URLs were found (otherwise, found_urls only contains the input URL).
     if not ARGS.output_file and not len(found_urls) == 1:
         PRINT_QUEUE.put(success("URLs discovered:"))
-        for url in sorted(found_urls, key=operator.attrgetter('url')):
-            if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
+        for url in sorted(found_urls, key=attrgetter('url')):
+            if not ARGS.show_regexp or (ARGS.show_regexp and search(ARGS.show_regexp, url.url)):
                 PRINT_QUEUE.put(url)
     elif not len(found_urls) == 1:
         with open(ARGS.output_file, 'w') as f:
-            for url in sorted(found_urls, key=operator.attrgetter('url')):
-                if not ARGS.show_regexp or (ARGS.show_regexp and re.search(ARGS.show_regexp, url.url)):
-                    f.write(url.__str__() + os.linesep)
+            for url in sorted(found_urls, key=attrgetter('url')):
+                if not ARGS.show_regexp or (ARGS.show_regexp and search(ARGS.show_regexp, url.url)):
+                    f.write(url.__str__() + linesep)
         PRINT_QUEUE.put(success("Discovered URLs were written to %s." % ARGS.output_file))
     else:
         PRINT_QUEUE.put(error("No URLs were found."))
