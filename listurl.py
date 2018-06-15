@@ -303,7 +303,7 @@ def extract_urls(page_data, page_url):
                 # Also list the possible POST parameters
                 params = []
                 for inp in link.find_all("input"):
-                    if inp.get("name"):
+                    if inp.get("name") and inp.get("type") is not None:
                         params.append(InputParameter(inp.get("name"), inp.get("value"), inp.get("type")))
                 if params:
                     grabbed_url.parameters = params
