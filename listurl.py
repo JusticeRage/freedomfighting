@@ -17,20 +17,28 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+# Standard library imports
 import argparse
 import operator
 import os
 import Queue
 import re
-import requests
 import sys
 import threading
 import urlparse
 
+# Third party library imports
 try:
     from bs4 import BeautifulSoup
 except ImportError:
     print "[\033[91m!\033[0m] BeautifulSoup is not installed! Please run '\033[93mpip install beautifulsoup4\033[0m' " \
+          "and launch this script again."
+    sys.exit(1)
+
+try:
+    import requests
+except ImportError:
+    print "[\033[91m!\033[0m] Requests is not installed! Please run '\033[93mpip install requests\033[0m' " \
           "and launch this script again."
     sys.exit(1)
 
@@ -61,7 +69,7 @@ def parse_arguments():
                                                        "of it.")
     parser.add_argument("--show-regexp", "-s", help="A regular expression filtering displayed results. The given "
                                                     "expression is searched inside the results, it doesn't have to"
-                                                    "match the whole URL. Example: \.php$")
+                                                    "match the whole URL. Example: \\.php$")
     parser.add_argument("--no-certificate-check", "-n", help="Disables the verification of SSL certificates.",
                         action="store_false", default=True)
     parser.add_argument("--output-file", "-o", help="The file into which the obtained URLs should be written")
@@ -189,7 +197,7 @@ class GrabbedURL:
             return "[%s] %s%s" % (self.method, " " if self.method == "GET" else "", self.url)
         else:
             res = "[%s] %s%s - params = %s" % (self.method, " " if self.method == "GET" else "", self.url,
-                                              ", ".join(p.__str__() for p in self.parameters))
+                                               ", ".join(p.__str__() for p in self.parameters))
             return res
 
     def __eq__(self, other):
@@ -405,7 +413,7 @@ def main():
             # join() on each individual thread.
             threads = []
             max_round_requests = input_queue.qsize()
-            for i in range(0, ARGS.threads):
+            for _ in range(0, ARGS.threads):
                 t = RequesterThread(input_queue, output_queue)
                 t.daemon = True
                 t.start()
