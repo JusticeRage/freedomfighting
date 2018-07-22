@@ -50,6 +50,10 @@ usage: nojail.py [-h] [--user USER] [--ip IP] [--hostname HOSTNAME]
      --ip IP, -i IP        The IP address to remove from the logs.
      --hostname HOSTNAME   The hostname of the user to wipe. Defaults to the rDNS
                            of the IP.
+     --regexp REGEXP, -r REGEXP
+                           A regular expression to select log lines to delete
+                           (optional)
+
      --verbose, -v         Print debug messages.
      --check, -c           If present, the user will be asked to confirm each
                            deletion from the logs.
@@ -73,6 +77,15 @@ The user will also be prompted before deleting each record because of the `--che
 If folders are given as positional arguments (`/etc/app/logs/` for instance), the script will recursively crawl them and
 clean any file with the `.log` extension (*.log.1, *.log.2.gz, etc. included).
 
+#### Regular expressions
+
+You may want to remove arbitrary lines from the log file as well. To do so, use the `--regexp` option. For example,
+the following command line will look for all POST requests to PHP files from the specified IP:
+
+```
+./nojail.py --ip 151.80.119.32 --regexp "POST /.*?\.php"
+```
+
 #### Daemonizing the script
 
 ```
@@ -83,6 +96,9 @@ with the detected IP address and hostname right after the connexion is closed. T
 automatically delete itself.
 Please bear in mind that you won't have any opportunity to receive error messages from the application. You are encouraged
 to try deleting the logs once before spawning the demon to make sure that the arguments you specified are correct.
+If you are in a shell with no TTY, the script will not be able to detect when the session ends. You will
+be notified that the logs will be deleted in 60 seconds, and that you should log out before then (or risk creating more
+entries after the script has run).
 
 ### Sample output:
 ```
@@ -91,7 +107,7 @@ root@proxy:~# ./nojail.py
 [*] 2 entries removed from /var/run/utmp!
 [*] 4 entries removed from /var/log/wtmp!
 [ ] No entries to remove from /var/log/btmp.
-[*] Lastlog set to 2017-01-09 17:12:49 from pts/0 at lns-bzn-37-79-250-104-19.adsl.proxad.net
+[*] Lastlog set to 2017-01-09 17:12:49 from pts/0 at lns-bzn-XXX-XXX-XXX-XXX-XXX.adsl.proxad.net
 [*] 4 lines removed from /var/log/nginx/error.log!
 [*] 11 lines removed from /var/log/nginx/access.log!
 [*] 4 lines removed from /var/log/auth.log!

