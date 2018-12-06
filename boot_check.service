@@ -1,0 +1,17 @@
+# Copy to /etc/systemd/system/
+
+[Unit]
+Description=Anti evil-maid attacks checks at startup
+After=getty@tty2.service
+
+[Service]
+Type=oneshot
+# /!\ Update the path below: /!\
+ExecStart=/bin/sh -c /root/boot_check.py
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty2
+TTYVHangup=yes
+
+[Install]
+WantedBy=default.target

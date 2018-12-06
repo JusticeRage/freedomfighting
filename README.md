@@ -13,6 +13,7 @@ Contributions and pull requests are very welcome.
 - [autojack.py](#autojackpy), a term logger.
 - [listurl.py](#listurlpy), a site mapper.
 - [ersh.py](#ershpy), an encrypted reverse shell.
+- [boot_check.py](#bootcheckpy), a script to detect evil-maid attacks.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## nojail.py
@@ -396,6 +397,45 @@ root@attacker:~/freedomfighting# socat openssl-listen:8080,reuseaddr,cert=server
 root@victim:~# unset HISTFILE
 root@victim:~#
 ```
+
+## boot_check.py
+
+This script was written to detect evil maid attacks. It does so by checking at
+boot time if the hard drive was powered on but not the OS (for instance, if it
+was taken out of the computer for a copy, or if someone tried to boot the
+machine but was stopped by a FDE password).
+
+### Installation:
+
+You need to make sure this script will run at every boot. The following
+instructions will work on distributions using systemd.
+
+* Copy boot_check.service to `/etc/systemd/system/`. Fix paths inside of it as needed.
+   The script will run as root so make sure it is not world writable!
+* `#> systemctl enable boot_check.service`
+
+Install dependencies:
+
+* `#> apt install smartmontools dialog`
+
+Run the script once so it initializes:
+
+* `#> ./boot_check.py`
+
+If a confirmation message appears, you're good to go.
+
+### Testing
+
+If you want to make sure that the script works, make sure you do the following:
+- Do not just reboot the computer, as the power to the hard drive may not be cut. 
+Turn it off completely.
+- If you don't want to take out your drive and plug it into another machine, you
+can try interrupting the boot process. This has to happen before the script is 
+executed, but after the drive has been powered on (which means after the BIOS)
+password. A good moment to interrupt the boot process is when the prompt for the
+FDE password is shown.
+- Then turn on the computer again, and you should see the alert on your screen
+a few seconds after your computer has booted up.
 
 ## Miscellaneous
 
