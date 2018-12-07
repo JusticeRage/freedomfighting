@@ -42,12 +42,6 @@ times they were booted up.
 """
 BOOT_COUNT_FILE = "/root/.boot_check"
 
-"""
-The following variable controls how often the firmware's integrity should be 
-verified. Default is every 10 boots.
-"""
-FIRMWARE_CHECK_PERIOD = 10
-
 # -----------------------------------------------------------------------------
 
 def main():
@@ -248,7 +242,8 @@ def dialog(text, width=50):
                               stdin=subprocess.PIPE)
     dialog.communicate(input=b"screen_color = (CYAN,RED,ON)\n")
     # Restore the original TTY
-    subprocess.Popen(["chvt", 7]).wait()
+    print("[\033[0;31m!\033[0m] Press [\033[0;31mCTRL+ALT+F7\033[0m] to go back to the desktop.")
+    subprocess.Popen(["chvt 7"], shell=True).wait()
 
 # =============================================================================
 

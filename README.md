@@ -13,7 +13,7 @@ Contributions and pull requests are very welcome.
 - [autojack.py](#autojackpy), a term logger.
 - [listurl.py](#listurlpy), a site mapper.
 - [ersh.py](#ershpy), an encrypted reverse shell.
-- [boot_check.py](#bootcheckpy), a script to detect evil-maid attacks.
+- [boot_check.py](#boot_checkpy), a script to detect evil-maid attacks.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## nojail.py
@@ -431,8 +431,8 @@ If you want to make sure that the script works, make sure you do the following:
 Turn it off completely.
 - If you don't want to take out your drive and plug it into another machine, you
 can try interrupting the boot process. This has to happen before the script is 
-executed, but after the drive has been powered on (which means after the BIOS)
-password. A good moment to interrupt the boot process is when the prompt for the
+executed, but after the drive has been powered on (which means after the BIOS
+password). A good moment to interrupt the boot process is when the prompt for the
 FDE password is shown.
 - Then turn on the computer again, and you should see the alert on your screen
 a few seconds after your computer has booted up.
