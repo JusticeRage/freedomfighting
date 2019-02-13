@@ -14,6 +14,7 @@ Contributions and pull requests are very welcome.
 - [listurl.py](#listurlpy), a site mapper.
 - [ersh.py](#ershpy), an encrypted reverse shell.
 - [boot_check.py](#boot_checkpy), a script to detect evil-maid attacks.
+- [notify_hook.py](#notify_hookpy), a way to trigger alerts when some binaries are called on a system.
 - [Miscellaneous](#miscellaneous) (contact and donations)
 
 ## nojail.py
@@ -437,11 +438,45 @@ FDE password is shown.
 - Then turn on the computer again, and you should see the alert on your screen
 a few seconds after your computer has booted up.
 
+## notify_hook.py
+
+This script was created to provide a simple way to "booby-trap" certain 
+executables on a linux system. The idea is to detect intruders when they use
+certain binaries (`id`, `whoami`, `gcc`) on a server they don't own.
+
+To protect those binaries, `notify_hook.py` create symbolic links to this 
+script higher-up in the `PATH`. `notify_hook` will then send you an alert
+and call the intended program in a transparent fashion. For instance, if
+you want to "protect" `id`, just create the following symlink on your machine:
+
+```
+ln -s path/to/notify_hook.py /usr/local/bin/id
+```
+
+...and all future calls to `id` should be routed through this script. This
+is obviously not a foolproof way to detect hackers on your systems, but it
+should nonetheless catch the most careless intruders.
+
+### Customization
+
+Some programs and scripts on your system may regularly invoke some of the
+binaries you wish to protect. In that case, you can edit a variable called 
+`CALLER_WHITELIST` placed at the beginning of the script. Put the name of
+those processes in the list to disable alerts from them (regular expressions
+are accepted).
+
+The current notification method implemented in this script is a text message
+sent thtough Signal with AsamK's 
+[signal-cli](https://github.com/AsamK/signal-cli). You'll need to install this
+project separately if you want to use it, or, more likely, replace the 
+`notify_callback` function placed on top of `notify_hook.py` with whatever
+suits your needs.
+
 ## Miscellaneous
 
 ### Donations
-These scripts are 100% free. I do like Bitcoins though, so if you want to send some my way, here's an address you can
-use: ```1PUeq8FfyqvyJqA1Eb23qHrnkdPknt4aKF```
+These scripts are 100% free. I do like Bitcoins though, so if you want to send 
+some my way, here's an address you can use: ```1PUeq8FfyqvyJqA1Eb23qHrnkdPknt4aKF```
 Feel free to drop me a line if you donate to the project, so I can thank you personally!
 
 ### Contact
