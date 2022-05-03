@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ###############################################################################
 # Reverse listener command:
-# socat openssl-listen:443,reuseaddr,cert=server.pem,cafile=client.crt,method=TLS1 file:`tty`,raw,echo=0
+# socat openssl-listen:443,reuseaddr,cert=server.pem,cafile=client.crt file:`tty`,raw,echo=0
 ###############################################################################
 
 ###############################################################################
@@ -122,7 +122,7 @@ def establish_connection():
         c_crt.flush()
         s_crt.write(server_crt)
         s_crt.flush()
-        s = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1,
+        s = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM),
                             keyfile=c_key.name,
                             certfile=c_crt.name,
                             ca_certs=s_crt.name)
