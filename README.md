@@ -472,13 +472,6 @@ project separately if you want to use it, or, more likely, replace the
 `notify_callback` function placed on top of `notify_hook.py` with whatever
 suits your needs.
 
-## Miscellaneous
-
-### Donations
-These scripts are 100% free. I do like Bitcoins though, so if you want to send 
-some my way, here's an address you can use: ```1PUeq8FfyqvyJqA1Eb23qHrnkdPknt4aKF```
-Feel free to drop me a line if you donate to the project, so I can thank you personally!
-
 ### Contact
 [![](https://manalyzer.org/static/mail.png)](justicerage@manalyzer[.]org)
 [![](https://manalyzer.org/static/twitter.png)](https://twitter.com/JusticeRage)
